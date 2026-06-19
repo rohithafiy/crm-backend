@@ -33,13 +33,8 @@ def validate_create_lead(data: dict[str, Any]) -> list[str]:
 
     # Required field presence
     for field in REQUIRED_FIELDS:
-        if field == "lead_name":
-            # Accept either `lead_name` or legacy `full_name`
-            if not (data.get("lead_name", "") or data.get("full_name", "")):
-                errors.append("'lead_name' (or legacy 'full_name') is required and cannot be empty.")
-        else:
-            if not data.get(field, "").strip():
-                errors.append(f"'{field}' is required and cannot be empty.")
+        if not data.get(field, "").strip():
+            errors.append(f"'{field}' is required and cannot be empty.")
 
     if errors:
         return errors  # Bail early; remaining checks need these fields
@@ -49,9 +44,9 @@ def validate_create_lead(data: dict[str, Any]) -> list[str]:
     if not _EMAIL_RE.match(email):
         errors.append(f"'{email}' is not a valid email address.")
 
-    # Phone format
+    # Phone format (optional)
     phone = data.get("phone", "").strip()
-    if not _PHONE_RE.match(phone):
+    if phone and not _PHONE_RE.match(phone):
         errors.append(f"'{phone}' is not a valid phone number.")
 
     # Source enum

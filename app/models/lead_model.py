@@ -26,15 +26,13 @@ class LeadStatus(str, Enum):
 
 
 class LeadSource(str, Enum):
-    """Lead acquisition sources."""
+    """Lead acquisition sources as per Portal 5 spec."""
     WEBSITE = "website"
     REFERRAL = "referral"
-    PORTAL1 = "portal1"
-    SOCIAL = "social"
-    EMAIL = "email"
-    COLD_CALL = "cold_call"
+    DIRECT = "direct"
+    SOCIAL_MEDIA = "social_media"
     EVENT = "event"
-    OTHER = "other"
+
 
 
 # Valid pipeline stage transitions
@@ -50,17 +48,16 @@ VALID_TRANSITIONS: dict[str, list[str]] = {
 }
 
 REQUIRED_FIELDS: list[str] = [
-    # Accept either 'lead_name' or legacy 'full_name'
-    "lead_name",
+    "full_name",
     "email",
-    "phone",
-    "source",
+    "service_type",
 ]
 
 OPTIONAL_FIELDS: list[str] = [
     "company_name",
     "industry",
-    "service_type",
+    "phone",
+    "source",
     "project_description",
     "budget_range",
     "timeline",
@@ -85,23 +82,26 @@ def build_lead_document(data: dict[str, Any], created_by: str) -> dict[str, Any]
         Complete lead document dict
     """
     now = datetime.utcnow()
-    # Support both new key `lead_name` and legacy `full_name` input
-    name = (data.get("lead_name") or data.get("full_name") or "").strip()
+    # `full_name` is required; legacy `lead_name` kept for backwards compatibility
+    name = data["full_name"].strip()
+    # Preserve legacy field if present
+    legacy_name = data.get("lead_name", name)
+
     return {
         "lead_name": name,
         # keep legacy field for compatibility
         "full_name": name,
         "company_name": data.get("company_name", "").strip(),
         "email": data["email"].strip().lower(),
-        "phone": data["phone"].strip(),
+        "phone": data.get("phone", "").strip(),
         "phone_normalized": normalize_phone(data.get("phone")),
         "industry": data.get("industry", ""),
-        "service_type": data.get("service_type", ""),
+        "service_type": data["service_type"].strip(),
         "project_description": data.get("project_description", ""),
         "budget_range": data.get("budget_range", ""),
         "timeline": data.get("timeline", ""),
         "estimated_value": float(data["estimated_value"]) if data.get("estimated_value") else None,
-        "source": data.get("source", LeadSource.OTHER),
+        "source": data.get("source"),
         "portal1_request_id": data.get("portal1_request_id"),
         "status": LeadStatus.NEW,
         "assigned_to": data.get("assigned_to"),
@@ -137,6 +137,7 @@ def serialize_lead(lead: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": str(lead["_id"]),
         "lead_name": lead.get("lead_name") or lead.get("full_name", ""),
+        # `full_name` is required; preserve legacy `lead_name` if present
         # keep legacy key for backwards compat
         "full_name": lead.get("lead_name") or lead.get("full_name", ""),
         "company_name": lead.get("company_name", ""),
