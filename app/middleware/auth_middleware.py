@@ -61,7 +61,7 @@ def verify_token(f: Callable) -> Callable:
 
         if not token:
             return error_response(
-                "Authorization token is missing.",
+                "Authentication required",
                 status_code=401,
             )
 
@@ -71,10 +71,10 @@ def verify_token(f: Callable) -> Callable:
         try:
             payload = jwt.decode(token, secret_key, algorithms=[algorithm])
         except jwt.ExpiredSignatureError:
-            return error_response("Token has expired.", status_code=401)
+            return error_response("Invalid or expired token", status_code=401)
         except jwt.InvalidTokenError as exc:
             logger.warning("Invalid JWT token: %s", str(exc))
-            return error_response("Invalid authentication token.", status_code=401)
+            return error_response("Invalid or expired token", status_code=401)
 
         user_role = payload.get("role", "")
         if user_role not in ALLOWED_ROLES:
