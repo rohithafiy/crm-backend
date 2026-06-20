@@ -127,3 +127,19 @@ def api_response(f):
             return internal_error(message="An internal error occurred", code="INTERNAL_ERROR")
 
     return wrapper
+
+
+def error_response(message, status_code=401):
+    if status_code == 401:
+        code = "TOKEN_MISSING" if "required" in message.lower() else "TOKEN_INVALID"
+        return unauthorized(message=message, code=code)
+    elif status_code == 400:
+        return bad_request(message=message)
+    elif status_code == 403:
+        return forbidden(message=message)
+    elif status_code == 404:
+        return not_found(message=message)
+    elif status_code == 429:
+        return too_many_requests(message=message)
+    return _error(status_code, "error", "ERROR", message)
+

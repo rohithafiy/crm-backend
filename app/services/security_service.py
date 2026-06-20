@@ -4,6 +4,7 @@ from collections import defaultdict
 from flask import request
 
 from app.configs.env_config import EnvConfig
+from app.utils.limiter import limiter
 
 _rate_limit_store = defaultdict(list)
 _login_limit_store = defaultdict(list)
@@ -36,7 +37,13 @@ def rate_limit_middleware():
 
 
 def register_rate_limit(app):
-    app.before_request(rate_limit_middleware)
+    limiter.init_app(app)
+
+    @app.errorhandler(429)
+    def ratelimit_handler(e):
+        from app.utils.api_response import too_many_requests
+        return too_many_requests(message="Rate limit exceeded", code="RATE_LIMIT_EXCEEDED")
+
 
 
 def log_audit_event(user_id, action, resource, details=None):

@@ -18,6 +18,8 @@ from app.utils.api_response import (
 from app.utils.jwt_helper import create_access_token, create_refresh_token, decode_token
 from app.utils.role_helper import validate_role
 from app.utils.validation import EMAIL_RULES, LOGIN_RULES, validate_request
+from app.utils.limiter import limiter
+from app.utils.audit_helper import log_audit
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -54,24 +56,23 @@ def _validate_portals(portals):
 
 
 def _set_auth_cookies(response, access_token, refresh_token):
-    secure = EnvConfig.FLASK_ENV in ("production", "prod", "staging")
     response.set_cookie(
         "access_token", access_token,
-        httponly=True, secure=secure, samesite="Lax",
+        httponly=True, secure=True, samesite="Strict",
         max_age=EnvConfig.JWT_ACCESS_TOKEN_EXPIRY,
         path="/",
     )
     response.set_cookie(
         "refresh_token", refresh_token,
-        httponly=True, secure=secure, samesite="Lax",
+        httponly=True, secure=True, samesite="Strict",
         max_age=EnvConfig.JWT_REFRESH_TOKEN_EXPIRY,
         path="/api/auth",
     )
 
 
 def _clear_auth_cookies(response):
-    response.set_cookie("access_token", "", httponly=True, secure=True, samesite="Lax", max_age=0, path="/")
-    response.set_cookie("refresh_token", "", httponly=True, secure=True, samesite="Lax", max_age=0, path="/api/auth")
+    response.set_cookie("access_token", "", httponly=True, secure=True, samesite="Strict", max_age=0, path="/")
+    response.set_cookie("refresh_token", "", httponly=True, secure=True, samesite="Strict", max_age=0, path="/api/auth")
 
 
 def _build_token_response(user_id, roles, portals):
@@ -94,6 +95,7 @@ def _build_token_response(user_id, roles, portals):
 
 
 @auth_bp.route("/login", methods=["POST"])
+@limiter.limit("5 per minute")
 def login():
     data = request.get_json()
     if not data:
@@ -105,6 +107,7 @@ def login():
 
     email = data["email"]
     if _check_account_lockout(email):
+        log_audit(email, "login_failure", "auth", {"reason": "account_locked", "ip_address": request.remote_addr})
         return too_many_requests(
             message="Account temporarily locked due to too many failed attempts",
             code="ACCOUNT_LOCKED",
@@ -114,46 +117,70 @@ def login():
     user = db.users.find_one({"email": email})
     if not user:
         _record_failed_login(email)
+        log_audit(email, "login_failure", "auth", {"reason": "user_not_found", "ip_address": request.remote_addr})
         return unauthorized(message="Invalid credentials")
 
     if not bcrypt.checkpw(data["password"].encode(), user["password_hash"].encode()):
         _record_failed_login(email)
+        log_audit(email, "login_failure", "auth", {"reason": "incorrect_password", "ip_address": request.remote_addr})
         return unauthorized(message="Invalid credentials")
 
     _clear_login_attempts(email)
 
     if not user.get("is_active", True):
+        log_audit(str(user["_id"]), "login_failure", "auth", {"reason": "account_deactivated", "ip_address": request.remote_addr})
         return forbidden(message="Account is deactivated", code="ACCOUNT_DEACTIVATED")
 
     user_id = str(user["_id"])
-    access_token, refresh_token = _build_token_response(user_id, user["roles"], user.get("portals", []))
+    
+    # Align role/roles schema
+    role = user.get("role")
+    roles = user.get("roles", [])
+    if role and not roles:
+        roles = [role]
+    elif roles and not role:
+        role = roles[0]
+
+    access_token, refresh_token = _build_token_response(user_id, roles, user.get("portals", []))
 
     resp = make_response(success(message="Login successful"))
     _set_auth_cookies(resp, access_token, refresh_token)
+    log_audit(user_id, "login_success", "auth", {"ip_address": request.remote_addr})
     return resp
 
 
 @auth_bp.route("/refresh", methods=["POST"])
+@limiter.limit("5 per minute")
 def refresh():
     refresh_token_cookie = request.cookies.get("refresh_token")
     if not refresh_token_cookie:
-        return unauthorized(message="Invalid or expired token")
+        from app.utils.api_response import error_response
+        log_audit("anonymous", "token_refresh_failure", "auth", {"reason": "missing_cookie"})
+        return error_response(message="Invalid or expired token", status_code=401)
 
     payload = decode_token(refresh_token_cookie)
     if not payload or payload.get("type") != "refresh":
-        return unauthorized(message="Invalid or expired token")
+        from app.utils.api_response import error_response
+        log_audit("anonymous", "token_refresh_failure", "auth", {"reason": "invalid_payload"})
+        return error_response(message="Invalid or expired token", status_code=401)
 
     db = _db.get_db()
     jti = payload.get("jti")
     if db.token_blacklist.find_one({"jti": jti}):
-        return unauthorized(message="Invalid or expired token")
+        from app.utils.api_response import error_response
+        log_audit(payload.get("sub", "unknown"), "token_refresh_failure", "auth", {"reason": "token_blacklisted"})
+        return error_response(message="Invalid or expired token", status_code=401)
 
     user = db.users.find_one({"_id": ObjectId(payload["sub"])})
     if not user:
-        return unauthorized(message="Invalid or expired token")
+        from app.utils.api_response import error_response
+        log_audit(payload.get("sub", "unknown"), "token_refresh_failure", "auth", {"reason": "user_not_found"})
+        return error_response(message="Invalid or expired token", status_code=401)
 
     if not user.get("is_active", True):
-        return unauthorized(message="Invalid or expired token")
+        from app.utils.api_response import error_response
+        log_audit(str(user["_id"]), "token_refresh_failure", "auth", {"reason": "user_inactive"})
+        return error_response(message="Invalid or expired token", status_code=401)
 
     db.sessions.update_one({"refresh_jti": jti}, {"$set": {"is_active": False}})
     db.token_blacklist.insert_one({
@@ -163,10 +190,18 @@ def refresh():
     })
 
     user_id = str(user["_id"])
-    access_token, new_refresh_token = _build_token_response(user_id, user["roles"], user.get("portals", []))
+    role = user.get("role")
+    roles = user.get("roles", [])
+    if role and not roles:
+        roles = [role]
+    elif roles and not role:
+        role = roles[0]
+
+    access_token, new_refresh_token = _build_token_response(user_id, roles, user.get("portals", []))
 
     resp = make_response(success(message="Token refreshed"))
     _set_auth_cookies(resp, access_token, new_refresh_token)
+    log_audit(user_id, "token_refresh_success", "auth")
     return resp
 
 
@@ -180,9 +215,11 @@ def logout():
     if not token:
         resp = make_response(success(message="Logged out successfully"))
         _clear_auth_cookies(resp)
+        log_audit("anonymous", "logout", "auth")
         return resp
 
     payload = decode_token(token)
+    user_id = "unknown"
     if payload:
         jti = payload.get("jti")
         user_id = payload.get("sub")
@@ -200,6 +237,7 @@ def logout():
 
     resp = make_response(success(message="Logged out successfully"))
     _clear_auth_cookies(resp)
+    log_audit(user_id, "logout", "auth")
     return resp
 
 

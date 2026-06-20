@@ -46,12 +46,23 @@ class AuthMiddleware:
         if SecurityConfig.is_public_route(path):
             return
 
+        token = get_token_from_header(request) or request.cookies.get("access_token")
+        if not token:
+            from app.utils.api_response import error_response
+            return error_response(message="Authentication required", status_code=401)
+
         payload = verify_token()
         if not payload:
-            return unauthorized(message="Invalid or expired token")
+            from app.utils.api_response import error_response
+            return error_response(message="Invalid or expired token", status_code=401)
 
         g.user_id = payload.get("sub")
-        g.roles = payload.get("roles", [])
+        role = payload.get("role")
+        roles = payload.get("roles", [])
+        if role and role not in roles:
+            roles = [role] + roles
+        g.roles = roles or ([role] if role else ["client"])
         g.portals = payload.get("portals", [])
         g.token_type = payload.get("type")
         g.token_jti = payload.get("jti")
+

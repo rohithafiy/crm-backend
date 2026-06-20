@@ -18,6 +18,18 @@ class SecurityConfig:
         "admin:audit": ["super_admin"],
     }
 
+    CORS_WHITELIST = [
+        "http://localhost:3000",
+        "http://localhost:5000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5000",
+        "http://127.0.0.1:5173",
+        "https://lti-crm-staging.vercel.app",
+        "https://lti-crm.vercel.app",
+        "https://lti-hub-backend.onrender.com",
+    ]
+
     PUBLIC_ROUTES = [
         "/api/auth/login",
         "/api/auth/refresh",
@@ -28,3 +40,4 @@ class SecurityConfig:
     @classmethod
     def is_public_route(cls, path):
         return path in cls.PUBLIC_ROUTES
+

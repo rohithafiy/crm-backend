@@ -7,12 +7,19 @@ from app.configs.env_config import EnvConfig
 from app.configs.security_config import SecurityConfig
 
 
-def create_access_token(user_id, roles, portals=None):
+def create_access_token(user_id, roles_or_role, portals=None):
     now = datetime.now(timezone.utc)
+    if isinstance(roles_or_role, list):
+        roles = roles_or_role
+        role = roles[0] if roles else "client"
+    else:
+        role = roles_or_role or "client"
+        roles = [role]
+
     payload = {
         "sub": str(user_id),
+        "role": role,
         "roles": roles,
-        "role": roles[0] if roles else "client",
         "portals": portals or [],
         "type": "access",
         "jti": str(uuid4()),
@@ -22,6 +29,7 @@ def create_access_token(user_id, roles, portals=None):
     }
     encoded = jwt.encode(payload, EnvConfig.JWT_SECRET, algorithm=SecurityConfig.JWT_ALGORITHM)
     return encoded, payload["jti"]
+
 
 
 def create_refresh_token(user_id):
