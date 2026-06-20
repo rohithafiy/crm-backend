@@ -25,12 +25,6 @@ def create_app():
     from app.services.auth_service import auth_bp
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
 
-    from app.services.client_management_service import client_management_bp
-    app.register_blueprint(client_management_bp, url_prefix="/api/client")
-
-    from app.services.crm_settings_service import crm_settings_bp
-    app.register_blueprint(crm_settings_bp, url_prefix="/api/crm/settings")
-
     from app.services.integration_service import integration_bp
     app.register_blueprint(integration_bp, url_prefix="/integration")
 

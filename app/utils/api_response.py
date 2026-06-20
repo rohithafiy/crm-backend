@@ -79,8 +79,8 @@ def bad_request(message="Bad request", code="VALIDATION_ERROR", details=None):
     return _error(400, "validation_error", code, message, details)
 
 
-def unauthorized(message="Authentication required", code="TOKEN_MISSING", details=None):
-    return _error(401, "authentication_error", code, message, details)
+def unauthorized(message="Authentication required", details=None):
+    return _error(401, "authentication_error", "AUTH_ERROR", message, details)
 
 
 def forbidden(message="Insufficient permissions", code="INSUFFICIENT_PERMISSIONS", details=None):
@@ -131,8 +131,11 @@ def api_response(f):
 
 def error_response(message, status_code=401):
     if status_code == 401:
-        code = "TOKEN_MISSING" if "required" in message.lower() else "TOKEN_INVALID"
-        return unauthorized(message=message, code=code)
+        if "required" in message.lower() or "missing" in message.lower():
+            msg = "Authentication required"
+        else:
+            msg = "Invalid or expired token"
+        return unauthorized(message=msg)
     elif status_code == 400:
         return bad_request(message=message)
     elif status_code == 403:
@@ -142,4 +145,5 @@ def error_response(message, status_code=401):
     elif status_code == 429:
         return too_many_requests(message=message)
     return _error(status_code, "error", "ERROR", message)
+
 

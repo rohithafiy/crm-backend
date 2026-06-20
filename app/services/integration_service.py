@@ -280,7 +280,7 @@ def receive_webhook():
     if not timestamp:
         logger.warning(f"Missing timestamp header from {portal_name}")
         from app.utils.api_response import unauthorized
-        return unauthorized(message="Missing timestamp header", code="TIMESTAMP_MISSING")
+        return unauthorized(message="Missing timestamp header")
 
     try:
         ts = datetime.fromisoformat(timestamp)

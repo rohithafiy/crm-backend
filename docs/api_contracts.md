@@ -5,7 +5,7 @@
 All endpoints are versioned via URL prefix:
 
 ```
-/api/v1/auth/login
+/api/auth/login
 /api/v1/leads
 /api/v1/clients
 ```
@@ -89,8 +89,8 @@ The `X-Total-Count` header is also set with the total count.
   "code": 401,
   "error": {
     "type": "authentication_error",
-    "code": "TOKEN_EXPIRED",
-    "message": "The access token has expired",
+    "code": "AUTH_ERROR",
+    "message": "Authentication required",
     "details": {}
   },
   "metadata": {
@@ -105,7 +105,7 @@ The `X-Total-Count` header is also set with the total count.
 | HTTP | Error Type | Error Codes |
 |------|-----------|-------------|
 | **400** | `validation_error` | `MISSING_FIELD`, `INVALID_FIELD`, `INVALID_ROLE` |
-| **401** | `authentication_error` | `TOKEN_MISSING`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `TOKEN_REVOKED`, `INVALID_CREDENTIALS`, `USER_NOT_FOUND` |
+| **401** | `authentication_error` | `AUTH_ERROR`, `INVALID_CREDENTIALS`, `USER_NOT_FOUND` |
 | **403** | `authorization_error` | `INSUFFICIENT_PERMISSIONS`, `INSUFFICIENT_ROLE`, `ACCOUNT_DEACTIVATED` |
 | **404** | `not_found` | `RESOURCE_NOT_FOUND` |
 | **409** | `conflict` | `RESOURCE_CONFLICT`, `EMAIL_EXISTS` |
@@ -159,7 +159,7 @@ The API governance system is implemented in `app/utils/api_response.py`:
 | Function | HTTP Code | Default Error Code |
 |----------|-----------|-------------------|
 | `bad_request(message, code)` | **400** | `VALIDATION_ERROR` |
-| `unauthorized(message, code)` | **401** | `TOKEN_MISSING` |
+| `unauthorized(message)` | **401** | `AUTH_ERROR` |
 | `forbidden(message, code)` | **403** | `INSUFFICIENT_PERMISSIONS` |
 | `not_found(message, code)` | **404** | `RESOURCE_NOT_FOUND` |
 | `conflict(message, code)` | **409** | `RESOURCE_CONFLICT` |

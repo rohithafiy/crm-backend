@@ -76,7 +76,8 @@ class TestErrorResponseFormat:
         body = resp.get_json()
         assert body["code"] == 401
         assert body["error"]["type"] == "authentication_error"
-        assert body["error"]["code"] == "TOKEN_MISSING"
+        assert body["error"]["code"] == "AUTH_ERROR"
+        assert body["error"]["message"] == "Authentication required"
 
     def test_forbidden(self, app):
         with app.test_request_context():
