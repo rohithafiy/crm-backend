@@ -104,39 +104,9 @@ def _mock_access_payload(**overrides):
     return payload
 
 
-class TestAuthRegister:
-    @patch("app.utils.db.get_db")
-    def test_register_success(self, mock_get_db, client):
-        mock_get_db.return_value = mock_db()
-        resp = client.post("/auth/register", json={
-            "email": "test@example.com",
-            "password": "SecurePass123",
-        })
-        assert resp.status_code == 201
-        body = resp.get_json()
-        assert body["status"] == "success"
-        assert "access_token" in body["data"]
-        assert "refresh_token" in body["data"]
-        assert body["message"] == "User registered successfully"
-
-    def test_register_missing_fields(self, client):
-        resp = client.post("/auth/register", json={})
-        assert resp.status_code == 400
-
-    @patch("app.utils.db.get_db")
-    def test_register_invalid_role(self, mock_get_db, client):
-        mock_get_db.return_value = mock_db()
-        resp = client.post("/auth/register", json={
-            "email": "test@example.com",
-            "password": "SecurePass123",
-            "roles": ["superadmin"],
-        })
-        assert resp.status_code == 400
-
-
 class TestAuthLogin:
     @patch("app.utils.db.get_db")
-    def test_login_success(self, mock_get_db, client):
+    def test_login_success_sets_cookies(self, mock_get_db, client):
         mdb = mock_db()
         mdb.users.insert_one({
             "_id": ObjectId("665a1b2c3d4e5f6a7b8c9d0e"),
@@ -148,27 +118,28 @@ class TestAuthLogin:
         })
         mock_get_db.return_value = mdb
         with patch("bcrypt.checkpw", return_value=True):
-            resp = client.post("/auth/login", json={
+            resp = client.post("/api/auth/login", json={
                 "email": "login@example.com",
                 "password": "SecurePass123",
             })
         assert resp.status_code == 200
         body = resp.get_json()
         assert body["status"] == "success"
-        assert "access_token" in body["data"]
+        assert body.get("data") is None
+        assert resp.headers.get("Set-Cookie") is not None
 
     @patch("app.utils.db.get_db")
     def test_login_wrong_password(self, mock_get_db, client):
         mock_get_db.return_value = mock_db()
         with patch("bcrypt.checkpw", return_value=False):
-            resp = client.post("/auth/login", json={
+            resp = client.post("/api/auth/login", json={
                 "email": "nonexistent@example.com",
                 "password": "wrong",
             })
         assert resp.status_code == 401
 
     def test_login_missing_fields(self, client):
-        resp = client.post("/auth/login", json={})
+        resp = client.post("/api/auth/login", json={})
         assert resp.status_code == 400
 
 
@@ -186,13 +157,11 @@ class TestAuthRefresh:
         mock_get_db.return_value = mdb
         mock_payload = _mock_access_payload(type="refresh", jti="jti-refresh-ok")
         with patch("app.services.auth_service.decode_token", return_value=mock_payload):
-            resp = client.post("/auth/refresh", json={
-                "refresh_token": "valid-refresh-token",
-            })
+            client.set_cookie("refresh_token", "valid-refresh-token")
+            resp = client.post("/api/auth/refresh")
         assert resp.status_code == 200
         body = resp.get_json()
         assert body["status"] == "success"
-        assert "access_token" in body["data"]
 
     @patch("app.utils.db.get_db")
     def test_refresh_with_revoked_token(self, mock_get_db, client):
@@ -201,9 +170,12 @@ class TestAuthRefresh:
         mock_get_db.return_value = mdb
         mock_payload = _mock_access_payload(type="refresh", jti="jti-revoked")
         with patch("app.services.auth_service.decode_token", return_value=mock_payload):
-            resp = client.post("/auth/refresh", json={
-                "refresh_token": "revoked-refresh-token",
-            })
+            client.set_cookie("refresh_token", "revoked-refresh-token")
+            resp = client.post("/api/auth/refresh")
+        assert resp.status_code == 401
+
+    def test_refresh_no_cookie(self, client):
+        resp = client.post("/api/auth/refresh")
         assert resp.status_code == 401
 
 
@@ -213,23 +185,21 @@ class TestAuthLogout:
     def test_logout_success(self, mock_decode, mock_blacklisted, client):
         mock_blacklisted.return_value = False
         mock_decode.return_value = _mock_access_payload(jti="jti-logout")
-        resp = client.post(
-            "/auth/logout",
-            headers={"Authorization": "Bearer valid-token"},
-        )
+        client.set_cookie("access_token", "valid-token")
+        resp = client.post("/api/auth/logout")
         assert resp.status_code == 200
         assert resp.get_json()["message"] == "Logged out successfully"
 
 
 class TestAuthMe:
     def test_me_unauthenticated(self, client):
-        resp = client.get("/auth/me")
+        resp = client.get("/api/auth/me")
         assert resp.status_code == 401
 
     def test_me_with_invalid_token(self, client):
         with patch("app.middleware.auth_middleware.decode_token", return_value=None):
             resp = client.get(
-                "/auth/me",
+                "/api/auth/me",
                 headers={"Authorization": "Bearer invalidtoken"},
             )
         assert resp.status_code == 401
@@ -237,13 +207,13 @@ class TestAuthMe:
 
 class TestAuthVerify:
     def test_verify_unauthenticated(self, client):
-        resp = client.get("/auth/verify")
+        resp = client.get("/api/auth/verify")
         assert resp.status_code == 401
 
 
 class TestMiddlewareSecurity:
     def test_protected_route_no_token(self, client):
-        resp = client.get("/auth/me")
+        resp = client.get("/api/auth/me")
         assert resp.status_code == 401
 
     def test_public_route_no_token(self, client):

@@ -12,6 +12,7 @@ def create_access_token(user_id, roles, portals=None):
     payload = {
         "sub": str(user_id),
         "roles": roles,
+        "role": roles[0] if roles else "client",
         "portals": portals or [],
         "type": "access",
         "jti": str(uuid4()),

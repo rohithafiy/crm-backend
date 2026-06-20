@@ -1,10 +1,10 @@
-# Deployment Guide
+# Deployment Guide — Portal 5 A1
 
 ## Architecture
 
 ```
                          ┌─────────────┐
-                         │   nginx/caddy  │  (TLS termination)
+                         │   nginx/caddy   │  (TLS termination)
                          └──────┬──────┘
                                 │
                          ┌──────▼──────┐
@@ -18,6 +18,15 @@
               │ (primary)  │          │  (optional) │
               └───────────┘          └─────────────┘
 ```
+
+## A1 Responsibilities
+
+This deployment covers the Portal 5 A1 contract:
+- **Authentication** — login, logout, refresh, me endpoints at `/api/auth/*`
+- **Security** — JWT via HTTP-only cookies, RBAC, rate limiting, audit logging
+- **Architecture** — middleware pipeline, API governance, standardized responses
+- **Integration** — cross-portal communication via HTTP APIs with HMAC signing
+- **Deployment** — health checks, environment configuration, Docker support
 
 ## Docker Deployment
 

@@ -8,6 +8,22 @@ from app.utils.api_response import forbidden, not_found
 from app.utils.role_helper import has_any_role, has_permission
 
 
+def verify_client_ownership(user_id, resource_type, resource_id):
+    if has_any_role(getattr(g, "roles", []), ["super_admin", "ops_lead"]):
+        return True
+    db = _db.get_db()
+    try:
+        doc = db[resource_type].find_one({"_id": ObjectId(resource_id)})
+    except Exception:
+        return False
+    if not doc:
+        return False
+    doc_owner = str(doc.get("owner_id", ""))
+    if doc_owner and doc_owner != user_id:
+        return False
+    return True
+
+
 def require_permission(permission):
     def decorator(f):
         @wraps(f)

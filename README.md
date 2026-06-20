@@ -1,6 +1,6 @@
-# LTI Hub Backend
+# LTI Hub Backend — Portal 5 A1
 
-Multi-portal CRM backend with authentication, authorization, RBAC, and cross-portal integration.
+Authentication, security, architecture, and integration layer for the LTI multi-portal CRM platform.
 
 ## Quick Start
 
@@ -28,7 +28,7 @@ flask run
 ```
 app/
 ├── middleware/    # Auth middleware, security headers
-├── services/      # Business logic (auth, leads, clients, proposals, invoices, payments, analytics, integration)
+├── services/      # Auth, integration, security, deployment
 ├── utils/         # Helpers (JWT, roles, permissions, validation, API responses, DB)
 ├── configs/       # Environment & security configuration
 docs/              # API contracts, integration contracts, deployment guide
@@ -40,13 +40,11 @@ tests/             # Pytest suite
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
 | `/health` | GET | Public | Health check |
-| `/auth/register` | POST | Public | Register user |
-| `/auth/login` | POST | Public | Login |
-| `/auth/refresh` | POST | Public | Refresh token |
-| `/auth/me` | GET | Bearer | Current user |
+| `/api/auth/login` | POST | Public | Login |
+| `/api/auth/refresh` | POST | Public | Refresh token |
+| `/api/auth/me` | GET | Bearer/Cookie | Current user |
+| `/api/auth/verify` | GET | Bearer/Cookie | Verify token |
 | `/integration/webhook` | POST | Signature | Cross-portal webhook |
-
-See `docs/api_contracts.md` for full details.
 
 ## Environment Variables
 

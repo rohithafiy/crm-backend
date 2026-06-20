@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -194,6 +195,7 @@ class TestWebhookReceiver:
         payload = '{"event":"project.request.created","data":{"request_id":"r-1"}}'
         secret = "dev-webhook-secret"
         signature = sign_webhook_payload(payload, secret)
+        timestamp = datetime.now(timezone.utc).isoformat()
         resp = client.post(
             "/integration/webhook",
             data=payload,
@@ -201,6 +203,7 @@ class TestWebhookReceiver:
             headers={
                 "X-Portal-Name": "portal1",
                 "X-Webhook-Signature": signature,
+                "X-Request-Timestamp": timestamp,
             },
         )
         assert resp.status_code == 200
@@ -231,6 +234,7 @@ class TestWebhookReceiver:
         payload = '{"event":"test.event","data":{"key":"val"}}'
         secret = "dev-webhook-secret"
         signature = sign_webhook_payload(payload, secret)
+        timestamp = datetime.now(timezone.utc).isoformat()
         resp = client.post(
             "/integration/webhook",
             data=payload,
@@ -238,6 +242,7 @@ class TestWebhookReceiver:
             headers={
                 "X-Portal-Name": "portal3",
                 "X-Webhook-Signature": signature,
+                "X-Request-Timestamp": timestamp,
             },
         )
         assert resp.status_code == 200

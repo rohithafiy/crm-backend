@@ -132,7 +132,7 @@ The `X-Total-Count` header is also set with the total count.
 
 ### Request Standards
 - Content-Type: `application/json`
-- Authorization: `Bearer <JWT>` (except public routes)
+- Authorization: `Bearer <JWT>` or HTTP-only cookie `access_token` (except public routes)
 - Dates: ISO 8601 UTC (`2026-06-18T12:00:00Z`)
 
 ### Response Standards
@@ -140,6 +140,7 @@ The `X-Total-Count` header is also set with the total count.
 - Status codes match HTTP semantics
 - Errors include machine-readable `code` for client logic
 - No sensitive data (passwords, tokens) in error messages
+- JWT tokens are set as HTTP-only, Secure, SameSite cookies — never exposed in JSON responses
 
 ---
 

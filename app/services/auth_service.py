@@ -2,14 +2,13 @@ from datetime import datetime, timedelta, timezone
 
 import bcrypt
 from bson.objectid import ObjectId
-from flask import Blueprint, g, request
+from flask import Blueprint, g, make_response, request
 
 from app.configs.env_config import EnvConfig
+from app.middleware.auth_middleware import verify_token
 from app.utils import db as _db
 from app.utils.api_response import (
     bad_request,
-    conflict,
-    created,
     forbidden,
     not_found,
     success,
@@ -18,7 +17,7 @@ from app.utils.api_response import (
 )
 from app.utils.jwt_helper import create_access_token, create_refresh_token, decode_token
 from app.utils.role_helper import validate_role
-from app.utils.validation import EMAIL_RULES, LOGIN_RULES, PASSWORD_RULES, validate_request
+from app.utils.validation import EMAIL_RULES, LOGIN_RULES, validate_request
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -54,6 +53,27 @@ def _validate_portals(portals):
     return []
 
 
+def _set_auth_cookies(response, access_token, refresh_token):
+    secure = EnvConfig.FLASK_ENV in ("production", "prod", "staging")
+    response.set_cookie(
+        "access_token", access_token,
+        httponly=True, secure=secure, samesite="Lax",
+        max_age=EnvConfig.JWT_ACCESS_TOKEN_EXPIRY,
+        path="/",
+    )
+    response.set_cookie(
+        "refresh_token", refresh_token,
+        httponly=True, secure=secure, samesite="Lax",
+        max_age=EnvConfig.JWT_REFRESH_TOKEN_EXPIRY,
+        path="/api/auth",
+    )
+
+
+def _clear_auth_cookies(response):
+    response.set_cookie("access_token", "", httponly=True, secure=True, samesite="Lax", max_age=0, path="/")
+    response.set_cookie("refresh_token", "", httponly=True, secure=True, samesite="Lax", max_age=0, path="/api/auth")
+
+
 def _build_token_response(user_id, roles, portals):
     access_token, access_jti = create_access_token(user_id, roles, portals)
     refresh_token, refresh_jti = create_refresh_token(user_id)
@@ -70,53 +90,7 @@ def _build_token_response(user_id, roles, portals):
         "is_active": True,
     })
     db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"last_login": now}})
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-    }
-
-
-@auth_bp.route("/register", methods=["POST"])
-def register():
-    data = request.get_json()
-    if not data:
-        return bad_request(message="Request body is required", code="MISSING_FIELD")
-
-    error = validate_request(EMAIL_RULES + PASSWORD_RULES, data)
-    if error:
-        return error
-
-    db = _db.get_db()
-    existing = db.users.find_one({"email": data["email"]})
-    if existing:
-        return conflict(message="Email already registered", code="EMAIL_EXISTS")
-
-    password_hash = bcrypt.hashpw(data["password"].encode(), bcrypt.gensalt()).decode()
-    roles = data.get("roles", ["client"])
-    if not roles or not all(validate_role(r) for r in roles):
-        return bad_request(message="Invalid role specified", code="INVALID_ROLE")
-    restricted = {"super_admin", "ops_lead"}
-    if restricted.intersection(roles):
-        return forbidden(
-            message="Cannot self-register with elevated role", code="ROLE_RESTRICTED"
-        )
-
-    user = {
-        "email": data["email"],
-        "password_hash": password_hash,
-        "roles": roles,
-        "portals": _validate_portals(data.get("portals", [])),
-        "is_active": True,
-    }
-    result = db.users.insert_one(user)
-    user_id = str(result.inserted_id)
-
-    tokens = _build_token_response(user_id, roles, data.get("portals", []))
-
-    return created(data={
-        "user_id": user_id,
-        **tokens,
-    }, message="User registered successfully")
+    return access_token, refresh_token
 
 
 @auth_bp.route("/login", methods=["POST"])
@@ -140,11 +114,11 @@ def login():
     user = db.users.find_one({"email": email})
     if not user:
         _record_failed_login(email)
-        return unauthorized(message="Invalid credentials", code="INVALID_CREDENTIALS")
+        return unauthorized(message="Invalid credentials")
 
     if not bcrypt.checkpw(data["password"].encode(), user["password_hash"].encode()):
         _record_failed_login(email)
-        return unauthorized(message="Invalid credentials", code="INVALID_CREDENTIALS")
+        return unauthorized(message="Invalid credentials")
 
     _clear_login_attempts(email)
 
@@ -152,36 +126,34 @@ def login():
         return forbidden(message="Account is deactivated", code="ACCOUNT_DEACTIVATED")
 
     user_id = str(user["_id"])
-    tokens = _build_token_response(user_id, user["roles"], user.get("portals", []))
+    access_token, refresh_token = _build_token_response(user_id, user["roles"], user.get("portals", []))
 
-    return success(data={
-        "user_id": user_id,
-        **tokens,
-    }, message="Login successful")
+    resp = make_response(success(message="Login successful"))
+    _set_auth_cookies(resp, access_token, refresh_token)
+    return resp
 
 
 @auth_bp.route("/refresh", methods=["POST"])
 def refresh():
-    data = request.get_json()
-    if not data or not data.get("refresh_token"):
-        return bad_request(message="Refresh token required", code="MISSING_FIELD")
+    refresh_token_cookie = request.cookies.get("refresh_token")
+    if not refresh_token_cookie:
+        return unauthorized(message="Invalid or expired token")
 
-    token = data["refresh_token"]
-    payload = decode_token(token)
+    payload = decode_token(refresh_token_cookie)
     if not payload or payload.get("type") != "refresh":
-        return unauthorized(message="Invalid refresh token", code="TOKEN_INVALID")
+        return unauthorized(message="Invalid or expired token")
 
     db = _db.get_db()
     jti = payload.get("jti")
     if db.token_blacklist.find_one({"jti": jti}):
-        return unauthorized(message="Token has been revoked", code="TOKEN_REVOKED")
+        return unauthorized(message="Invalid or expired token")
 
     user = db.users.find_one({"_id": ObjectId(payload["sub"])})
     if not user:
-        return unauthorized(message="User not found", code="USER_NOT_FOUND")
+        return unauthorized(message="Invalid or expired token")
 
     if not user.get("is_active", True):
-        return forbidden(message="Account is deactivated", code="ACCOUNT_DEACTIVATED")
+        return unauthorized(message="Invalid or expired token")
 
     db.sessions.update_one({"refresh_jti": jti}, {"$set": {"is_active": False}})
     db.token_blacklist.insert_one({
@@ -191,17 +163,24 @@ def refresh():
     })
 
     user_id = str(user["_id"])
-    tokens = _build_token_response(user_id, user["roles"], user.get("portals", []))
+    access_token, new_refresh_token = _build_token_response(user_id, user["roles"], user.get("portals", []))
 
-    return success(data=tokens, message="Token refreshed")
+    resp = make_response(success(message="Token refreshed"))
+    _set_auth_cookies(resp, access_token, new_refresh_token)
+    return resp
 
 
 @auth_bp.route("/logout", methods=["POST"])
 def logout():
-    auth_header = request.headers.get("Authorization", "")
-    token = auth_header[7:] if auth_header.startswith("Bearer ") else None
+    token = request.cookies.get("access_token")
     if not token:
-        return bad_request(message="No token provided", code="MISSING_FIELD")
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+    if not token:
+        resp = make_response(success(message="Logged out successfully"))
+        _clear_auth_cookies(resp)
+        return resp
 
     payload = decode_token(token)
     if payload:
@@ -219,7 +198,9 @@ def logout():
             {"$set": {"is_active": False}},
         )
 
-    return success(message="Logged out successfully")
+    resp = make_response(success(message="Logged out successfully"))
+    _clear_auth_cookies(resp)
+    return resp
 
 
 @auth_bp.route("/logout/all", methods=["POST"])
@@ -246,7 +227,9 @@ def logout_all():
         {"$set": {"is_active": False}},
     )
 
-    return success(message="All sessions terminated")
+    resp = make_response(success(message="All sessions terminated"))
+    _clear_auth_cookies(resp)
+    return resp
 
 
 @auth_bp.route("/sessions", methods=["GET"])
@@ -304,16 +287,17 @@ def me():
     if not user:
         return not_found(message="User not found")
     user["_id"] = str(user["_id"])
-    return success(data=user)
+    return success(data=user, message="User retrieved")
 
 
 @auth_bp.route("/verify", methods=["GET"])
 def verify():
-    if not getattr(g, "user_id", None):
-        return unauthorized(message="Authentication required")
+    payload = verify_token()
+    if not payload:
+        return unauthorized(message="Invalid or expired token")
     return success(data={
         "valid": True,
-        "user_id": g.user_id,
-        "roles": g.roles,
-        "portals": g.portals,
+        "user_id": payload.get("sub"),
+        "roles": payload.get("roles", []),
+        "portals": payload.get("portals", []),
     })

@@ -37,23 +37,15 @@ class TestSecurityConfig:
         for route in SecurityConfig.PUBLIC_ROUTES:
             assert route.startswith("/")
 
-    def test_crm_permission_structure(self):
+    def test_admin_permission_structure(self):
         from app.configs.security_config import SecurityConfig
-        resources = {"leads", "clients", "proposals", "invoices", "payments", "analytics", "admin"}
         for perm in SecurityConfig.PERMISSIONS:
-            resource = perm.split(":")[0]
-            assert resource in resources, f"Unknown resource in permission: {perm}"
+            assert perm.startswith("admin:"), f"Unexpected permission: {perm}"
 
     def test_super_admin_has_all(self):
         from app.configs.security_config import SecurityConfig
         for perm, roles in SecurityConfig.PERMISSIONS.items():
             assert "super_admin" in roles, f"super_admin missing from {perm}"
-
-    def test_client_limited_permissions(self):
-        from app.configs.security_config import SecurityConfig
-        for perm, roles in SecurityConfig.PERMISSIONS.items():
-            if "client" in roles:
-                assert perm.endswith(":read"), f"client has non-read permission: {perm}"
 
 
 class TestWebhookSignature:

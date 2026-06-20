@@ -14,6 +14,27 @@ def _is_token_blacklisted(jti):
         return True
 
 
+def verify_token():
+    token = get_token_from_header(request)
+    if not token:
+        token = request.cookies.get("access_token")
+    if not token:
+        return None
+
+    payload = decode_token(token)
+    if not payload:
+        return None
+
+    if payload.get("type") != "access":
+        return None
+
+    jti = payload.get("jti")
+    if jti and _is_token_blacklisted(jti):
+        return None
+
+    return payload
+
+
 class AuthMiddleware:
     def __init__(self, app):
         self.app = app
@@ -25,31 +46,12 @@ class AuthMiddleware:
         if SecurityConfig.is_public_route(path):
             return
 
-        token = get_token_from_header(request)
-        if not token:
-            return unauthorized(
-                message="Missing authorization token", code="TOKEN_MISSING"
-            )
-
-        payload = decode_token(token)
+        payload = verify_token()
         if not payload:
-            return unauthorized(
-                message="Invalid or expired token", code="TOKEN_INVALID"
-            )
-
-        if payload.get("type") != "access":
-            return unauthorized(
-                message="Invalid token type", code="TOKEN_TYPE_INVALID"
-            )
-
-        jti = payload.get("jti")
-        if jti and _is_token_blacklisted(jti):
-            return unauthorized(
-                message="Token has been revoked", code="TOKEN_REVOKED"
-            )
+            return unauthorized(message="Invalid or expired token")
 
         g.user_id = payload.get("sub")
         g.roles = payload.get("roles", [])
         g.portals = payload.get("portals", [])
         g.token_type = payload.get("type")
-        g.token_jti = jti
+        g.token_jti = payload.get("jti")

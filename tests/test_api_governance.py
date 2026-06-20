@@ -142,7 +142,7 @@ class TestGovernanceCompliance:
         assert "metadata" in body
 
     def test_auth_error_uses_envelope(self, client):
-        resp = client.get("/auth/me")
+        resp = client.get("/api/auth/me")
         body = resp.get_json()
         assert body["status"] == "error"
         assert body["code"] == 401

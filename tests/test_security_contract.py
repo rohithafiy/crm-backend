@@ -20,11 +20,17 @@ class TestJWTSecurity:
         decoded = decode_token(token)
         assert decoded["sub"] == "user1"
         assert decoded["roles"] == ["ops_lead"]
+        assert decoded["role"] == "ops_lead"
         assert decoded["portals"] == ["portal1"]
         assert decoded["type"] == "access"
         assert decoded["jti"] == jti
         assert "iat" in decoded
         assert "exp" in decoded
+
+    def test_access_token_role_fallback(self):
+        token, _ = create_access_token("user1", [])
+        decoded = decode_token(token)
+        assert decoded["role"] == "client"
 
     def test_refresh_token_creation_and_decode(self):
         token, jti = create_refresh_token("user1")
@@ -107,14 +113,14 @@ class TestRoleAndPermission:
         assert has_role(["client"], "super_admin") is False
 
     def test_permission_via_hierarchy(self):
-        assert has_permission(["super_admin"], "leads:delete") is True
-        assert has_permission(["ops_lead"], "leads:write") is True
-        assert has_permission(["project_manager"], "leads:read") is True
-        assert has_permission(["client"], "clients:read") is True
+        assert has_permission(["super_admin"], "admin:users") is True
+        assert has_permission(["ops_lead"], "admin:users") is False
+        assert has_permission(["project_manager"], "admin:users") is False
+        assert has_permission(["client"], "admin:users") is False
 
     def test_permission_denied(self):
-        assert has_permission(["client"], "leads:write") is False
-        assert has_permission(["project_manager"], "admin:users") is False
+        assert has_permission(["client"], "admin:settings") is False
+        assert has_permission(["project_manager"], "admin:settings") is False
         assert has_permission(["ops_lead"], "admin:settings") is False
 
     def test_require_permission_decorator_allows(self, app):
@@ -164,7 +170,7 @@ class TestResourceOwnership:
             g.user_id = "admin1"
             g.roles = ["super_admin"]
             func = Mock()
-            require_ownership("leads")(func)(id="507f1f77bcf86cd799439011")
+            require_ownership("users")(func)(id="507f1f77bcf86cd799439011")
             func.assert_called_once()
 
     @patch("app.utils.db.get_db")
@@ -180,7 +186,7 @@ class TestResourceOwnership:
             g.user_id = user_id
             g.roles = ["project_manager"]
             func = Mock()
-            require_ownership("leads")(func)(id="507f1f77bcf86cd799439011")
+            require_ownership("users")(func)(id="507f1f77bcf86cd799439011")
             func.assert_called_once()
 
     @patch("app.utils.db.get_db")
@@ -196,7 +202,7 @@ class TestResourceOwnership:
             g.user_id = user_id
             g.roles = ["project_manager"]
             func = Mock()
-            result = require_ownership("leads")(func)(id="507f1f77bcf86cd799439011")
+            result = require_ownership("users")(func)(id="507f1f77bcf86cd799439011")
             assert result is not None
             func.assert_not_called()
 
@@ -212,9 +218,45 @@ class TestResourceOwnership:
             g.user_id = str(ObjectId())
             g.roles = ["project_manager"]
             func = Mock()
-            result = require_ownership("leads")(func)(id="507f1f77bcf86cd799439011")
+            result = require_ownership("users")(func)(id="507f1f77bcf86cd799439011")
             assert result is not None
             func.assert_not_called()
+
+    @patch("app.utils.db.get_db")
+    def test_verify_client_ownership_allows_owner(self, mock_get_db, app):
+        from app.utils.permission_helper import verify_client_ownership
+        user_id = str(ObjectId())
+        mock_db = MagicMock()
+        col_mock = mock_db.__getitem__.return_value
+        col_mock.find_one.return_value = {"_id": ObjectId(), "owner_id": user_id}
+        mock_get_db.return_value = mock_db
+        with app.test_request_context():
+            from flask import g
+            g.user_id = user_id
+            g.roles = ["client"]
+            assert verify_client_ownership(user_id, "users", "507f1f77bcf86cd799439011") is True
+
+    @patch("app.utils.db.get_db")
+    def test_verify_client_ownership_denies_non_owner(self, mock_get_db, app):
+        from app.utils.permission_helper import verify_client_ownership
+        user_id = str(ObjectId())
+        mock_db = MagicMock()
+        col_mock = mock_db.__getitem__.return_value
+        col_mock.find_one.return_value = {"_id": ObjectId(), "owner_id": str(ObjectId())}
+        mock_get_db.return_value = mock_db
+        with app.test_request_context():
+            from flask import g
+            g.user_id = user_id
+            g.roles = ["client"]
+            assert verify_client_ownership(user_id, "users", "507f1f77bcf86cd799439011") is False
+
+    def test_verify_client_ownership_bypasses_admin(self, app):
+        from app.utils.permission_helper import verify_client_ownership
+        with app.test_request_context():
+            from flask import g
+            g.user_id = "admin1"
+            g.roles = ["super_admin"]
+            assert verify_client_ownership("admin1", "users", "507f1f77bcf86cd799439011") is True
 
     def test_ownership_ops_lead_bypasses(self, app):
         from app.utils.permission_helper import require_ownership
@@ -223,7 +265,7 @@ class TestResourceOwnership:
             g.user_id = "user1"
             g.roles = ["ops_lead"]
             func = Mock()
-            require_ownership("leads")(func)(id="507f1f77bcf86cd799439011")
+            require_ownership("users")(func)(id="507f1f77bcf86cd799439011")
             func.assert_called_once()
 
 
@@ -252,7 +294,7 @@ class TestInputValidation:
     def test_strong_password_passes(self, app):
         from app.utils.validation import PASSWORD_RULES, validate_request
         with app.test_request_context():
-            assert validate_request(PASSWORD_RULES, {"password": "ValidPass1"}) is None
+            assert validate_request(PASSWORD_RULES, {"password": "ValidP@ss1"}) is None
 
     def test_email_format_validated(self, app):
         from app.utils.validation import EMAIL_RULES, validate_request
@@ -281,29 +323,18 @@ class TestProtectedRoutes:
     def test_health_is_public(self, client):
         assert client.get("/health").status_code == 200
 
-    @patch("app.utils.db.get_db")
-    def test_register_is_public(self, mock_db, client):
-        from tests.test_auth import mock_db as fake_db
-        mock_db.return_value = fake_db()
-        resp = client.post("/auth/register", json={"email": "a@b.com", "password": "StrongPass1"})
-        assert resp.status_code != 401
-
-    def test_crm_routes_require_auth(self, client):
-        routes = ["/leads", "/clients", "/proposals", "/invoices", "/payments"]
-        routes.append("/analytics/dashboard")
-        for route in routes:
-            assert client.get(route).status_code == 401
-
-    def test_crm_post_requires_auth(self, client):
-        for route in ["/leads", "/clients", "/proposals", "/invoices"]:
-            assert client.post(route, json={}).status_code == 401
+    def test_login_is_public(self, client):
+        resp = client.post("/api/auth/login", json={"email": "a@b.com", "password": "x"})
+        body = resp.get_json()
+        assert resp.status_code == 401
+        assert body["error"]["message"] == "Invalid credentials"
 
     def test_invalid_token_returns_401(self, client):
-        resp = client.get("/leads", headers={"Authorization": "Bearer invalidtoken"})
+        resp = client.get("/api/auth/me", headers={"Authorization": "Bearer invalidtoken"})
         assert resp.status_code == 401
 
     def test_missing_auth_header_returns_401(self, client):
-        assert client.get("/leads").status_code == 401
+        assert client.get("/api/auth/me").status_code == 401
 
 
 # ─── Environment Security ────────────────────────────────────────────────────
@@ -377,14 +408,25 @@ class TestAccountLockout:
 
 class TestAuthJourney:
     @patch("app.utils.db.get_db")
-    def test_full_register_returns_tokens(self, mock_get_db, client):
+    def test_full_login_returns_cookies(self, mock_get_db, client):
         from tests.test_auth import mock_db as fake_db
-        mock_get_db.return_value = fake_db()
-        resp = client.post("/auth/register", json={
-            "email": "journey@example.com", "password": "SecurePass1",
+        mdb = fake_db()
+        mdb.users.insert_one({
+            "_id": ObjectId("665a1b2c3d4e5f6a7b8c9d0e"),
+            "email": "journey@example.com",
+            "password_hash": "$2b$12$dummyhash",
+            "roles": ["client"],
+            "portals": [],
+            "is_active": True,
         })
-        assert resp.status_code == 201
+        mock_get_db.return_value = mdb
+        with patch("bcrypt.checkpw", return_value=True):
+            resp = client.post("/api/auth/login", json={
+                "email": "journey@example.com", "password": "SecurePass1",
+            })
+        assert resp.status_code == 200
         body = resp.get_json()
         assert body["status"] == "success"
-        assert "access_token" in body["data"]
-        assert decode_token(body["data"]["access_token"]) is not None
+        assert body.get("data") is None
+        set_cookie = resp.headers.get("Set-Cookie", "")
+        assert "access_token" in set_cookie

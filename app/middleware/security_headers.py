@@ -15,7 +15,7 @@ class SecurityHeadersMiddleware:
         response.headers["Cache-Control"] = "no-store"
         response.headers["Pragma"] = "no-cache"
 
-        if request.path.startswith("/auth/"):
+        if request.path.startswith("/api/auth/"):
             response.headers["Cache-Control"] = (
                 "no-store, no-cache, must-revalidate, proxy-revalidate"
             )

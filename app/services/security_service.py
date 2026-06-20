@@ -16,7 +16,7 @@ def rate_limit_middleware():
     client_ip = request.remote_addr
     now = time.time()
 
-    if request.path == "/auth/login":
+    if request.path == "/api/auth/login":
         window = EnvConfig.RATE_LIMIT_LOGIN_WINDOW
         max_requests = EnvConfig.RATE_LIMIT_LOGIN_REQUESTS
         store = _login_limit_store

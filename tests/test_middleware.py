@@ -30,34 +30,24 @@ class TestRoleHelper:
 
 
 class TestPermissionHelper:
-    def test_super_admin_has_all_crm_permissions(self):
-        assert has_permission(["super_admin"], "leads:delete") is True
+    def test_super_admin_has_all_admin_permissions(self):
         assert has_permission(["super_admin"], "admin:users") is True
-        assert has_permission(["super_admin"], "analytics:export") is True
+        assert has_permission(["super_admin"], "admin:roles") is True
+        assert has_permission(["super_admin"], "admin:settings") is True
+        assert has_permission(["super_admin"], "admin:audit") is True
 
     def test_ops_lead_permissions(self):
-        assert has_permission(["ops_lead"], "leads:write") is True
-        assert has_permission(["ops_lead"], "clients:assign") is True
-        assert has_permission(["ops_lead"], "analytics:export") is True
         assert has_permission(["ops_lead"], "admin:users") is False
 
     def test_project_manager_permissions(self):
-        assert has_permission(["project_manager"], "leads:read") is True
-        assert has_permission(["project_manager"], "proposals:write") is True
-        assert has_permission(["project_manager"], "proposals:approve") is True
-        assert has_permission(["project_manager"], "leads:write") is False
         assert has_permission(["project_manager"], "admin:settings") is False
 
     def test_client_limited_permissions(self):
-        assert has_permission(["client"], "clients:read") is True
-        assert has_permission(["client"], "proposals:read") is True
-        assert has_permission(["client"], "invoices:read") is True
-        assert has_permission(["client"], "leads:read") is False
-        assert has_permission(["client"], "analytics:read") is False
-        assert has_permission(["client"], "clients:write") is False
+        assert has_permission(["client"], "admin:users") is False
+        assert has_permission(["client"], "admin:audit") is False
 
     def test_permission_denied(self):
-        assert has_permission(["client"], "leads:delete") is False
+        assert has_permission(["client"], "admin:users") is False
 
 
 class TestPermissionDecorators:
