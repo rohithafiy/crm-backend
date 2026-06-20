@@ -25,6 +25,17 @@ from app.utils.pagination_helper import build_pagination_query
 logger = logging.getLogger(__name__)
 
 
+def parse_date(date_str: Any) -> Optional[datetime]:
+    if not date_str:
+        return None
+    if isinstance(date_str, datetime):
+        return date_str
+    try:
+        return datetime.fromisoformat(str(date_str).replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
 class LeadService:
     """Service class encapsulating all lead business logic."""
 
@@ -68,6 +79,10 @@ class LeadService:
                     f"A lead with phone '{data.get('phone')}' already exists (id: {str(existing_phone['_id'])})."
                 )
 
+        # Parse follow_up_date
+        if "follow_up_date" in data:
+            data["follow_up_date"] = parse_date(data["follow_up_date"])
+
         # Normalize assigned_to to ObjectId when possible and record initial assignment
         if data.get("assigned_to"):
             try:
@@ -102,6 +117,20 @@ class LeadService:
             result = collection.insert_one(doc)
             doc["_id"] = result.inserted_id
             logger.info("Lead created: %s by %s", result.inserted_id, created_by)
+
+            # Log to aggregated activity feed
+            try:
+                from app.services.activity_service import ActivityService
+                ActivityService.log_activity(
+                    action="lead_created",
+                    performed_by=created_by,
+                    details=f"Lead '{doc.get('full_name')}' created.",
+                    resource_type="lead",
+                    resource_id=str(result.inserted_id)
+                )
+            except Exception:
+                logger.exception("Failed to log activity event for lead creation")
+
             return serialize_lead(doc)
         except DuplicateKeyError:
             raise ValueError(
@@ -226,13 +255,14 @@ class LeadService:
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def update_lead(lead_id: str, data: dict[str, Any]) -> Optional[dict[str, Any]]:
+    def update_lead(lead_id: str, data: dict[str, Any], updated_by: str = "system") -> Optional[dict[str, Any]]:
         """
         Partially update a lead document.
 
         Args:
             lead_id: MongoDB ObjectId string
             data: Fields to update
+            updated_by: User ID performing update
 
         Returns:
             Updated serialized lead or None if not found
@@ -249,6 +279,10 @@ class LeadService:
         lead = collection.find_one({"_id": oid, "is_deleted": False})
         if not lead:
             return None
+
+        # Parse follow_up_date
+        if "follow_up_date" in data:
+            data["follow_up_date"] = parse_date(data["follow_up_date"])
 
         # If email is being changed, check for duplicates
         if "email" in data:
@@ -277,13 +311,27 @@ class LeadService:
         try:
             audit_entry = {
                 "action": "update",
-                "performed_by": updates.get("updated_by") or "system",
+                "performed_by": updated_by,
                 "details": f"Updated fields: {', '.join(list(updates.keys()))}",
                 "timestamp": datetime.utcnow(),
             }
             collection.update_one({"_id": oid}, {"$push": {"audit_logs": audit_entry}})
         except Exception:
             logger.exception("Failed to append audit log for lead %s", lead_id)
+
+        # Log to aggregated activity feed
+        try:
+            from app.services.activity_service import ActivityService
+            ActivityService.log_activity(
+                action="lead_updated",
+                performed_by=updated_by,
+                details=f"Lead updated fields: {', '.join(list(updates.keys()))}",
+                resource_type="lead",
+                resource_id=lead_id
+            )
+        except Exception:
+            logger.exception("Failed to log activity event for lead update")
+
         updated = collection.find_one({"_id": oid})
         return serialize_lead(updated)
 
@@ -292,7 +340,7 @@ class LeadService:
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def delete_lead(lead_id: str) -> bool:
+    def delete_lead(lead_id: str, deleted_by: str = "system") -> bool:
         """
         Soft-delete a lead by setting is_deleted=True.
 
@@ -320,7 +368,7 @@ class LeadService:
             try:
                 collection.update_one({"_id": oid}, {"$push": {"audit_logs": {
                     "action": "delete",
-                    "performed_by": "system",
+                    "performed_by": deleted_by,
                     "details": "Soft-deleted lead",
                     "timestamp": datetime.utcnow(),
                 }}})
@@ -406,6 +454,20 @@ class LeadService:
             logger.exception("Failed to append assignment audit for lead %s", lead_id)
 
         logger.info("Lead %s assigned to %s by %s", lead_id, assigned_to, assigned_by)
+
+        # Log to aggregated activity feed
+        try:
+            from app.services.activity_service import ActivityService
+            ActivityService.log_activity(
+                action="lead_assigned",
+                performed_by=assigned_by,
+                details=f"Lead assigned to {assigned_to}",
+                resource_type="lead",
+                resource_id=lead_id
+            )
+        except Exception:
+            logger.exception("Failed to log activity event for lead assignment")
+
         updated = collection.find_one({"_id": oid})
         return serialize_lead(updated)
 
@@ -510,7 +572,205 @@ class LeadService:
             converted_by,
         )
 
+        # Log to aggregated activity feed
+        try:
+            from app.services.activity_service import ActivityService
+            ActivityService.log_activity(
+                action="lead_converted",
+                performed_by=converted_by,
+                details=f"Lead converted to client {client.get('id')}",
+                resource_type="lead",
+                resource_id=lead_id
+            )
+        except Exception:
+            logger.exception("Failed to log activity event for lead conversion")
+
         return {
             "lead": serialize_lead(updated_lead),
             "client": client,
         }
+
+    # ------------------------------------------------------------------ #
+    #  BULK OPERATIONS                                                     #
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def bulk_assign(
+        lead_ids: list[str],
+        assigned_to: str,
+        assigned_by: str,
+        note: str = ""
+    ) -> int:
+        collection = get_leads_collection()
+        oids = []
+        for lid in lead_ids:
+            try:
+                oids.append(ObjectId(lid))
+            except InvalidId:
+                raise ValueError(f"'{lid}' is not a valid lead ID.")
+
+        # Validate that all leads exist and are active
+        existing_count = collection.count_documents({"_id": {"$in": oids}, "is_deleted": False})
+        if existing_count != len(oids):
+            raise ValueError("One or more lead IDs do not exist or are deleted.")
+
+        try:
+            assigned_to_val = ObjectId(assigned_to)
+        except Exception:
+            assigned_to_val = assigned_to
+
+        try:
+            assigned_by_val = ObjectId(assigned_by)
+        except Exception:
+            assigned_by_val = assigned_by
+
+        assignment_entry = {
+            "assigned_to": assigned_to_val,
+            "assigned_by": assigned_by_val,
+            "note": note,
+            "assigned_at": datetime.utcnow()
+        }
+
+        audit_entry = {
+            "action": "bulk_assign",
+            "performed_by": assigned_by,
+            "details": f"Bulk assigned to {assigned_to}",
+            "timestamp": datetime.utcnow()
+        }
+
+        result = collection.update_many(
+            {"_id": {"$in": oids}},
+            {
+                "$set": {
+                    "assigned_to": assigned_to_val,
+                    "updated_at": datetime.utcnow()
+                },
+                "$push": {
+                    "assignment_history": assignment_entry,
+                    "audit_logs": audit_entry
+                }
+            }
+        )
+
+        from app.services.activity_service import ActivityService
+        for lid in lead_ids:
+            try:
+                ActivityService.log_activity(
+                    action="lead_assigned",
+                    performed_by=assigned_by,
+                    details=f"Lead bulk assigned to {assigned_to}",
+                    resource_type="lead",
+                    resource_id=lid
+                )
+            except Exception:
+                pass
+
+        return result.modified_count
+
+    @staticmethod
+    def bulk_status(
+        lead_ids: list[str],
+        status: str,
+        updated_by: str
+    ) -> int:
+        from app.validators.lead_validator import VALID_STATUSES
+        if status not in VALID_STATUSES:
+            raise ValueError(f"Invalid status '{status}'.")
+
+        collection = get_leads_collection()
+        oids = []
+        for lid in lead_ids:
+            try:
+                oids.append(ObjectId(lid))
+            except InvalidId:
+                raise ValueError(f"'{lid}' is not a valid lead ID.")
+
+        existing_count = collection.count_documents({"_id": {"$in": oids}, "is_deleted": False})
+        if existing_count != len(oids):
+            raise ValueError("One or more lead IDs do not exist or are deleted.")
+
+        audit_entry = {
+            "action": "bulk_status_update",
+            "performed_by": updated_by,
+            "details": f"Bulk status updated to {status}",
+            "timestamp": datetime.utcnow()
+        }
+
+        result = collection.update_many(
+            {"_id": {"$in": oids}},
+            {
+                "$set": {
+                    "status": status,
+                    "updated_at": datetime.utcnow()
+                },
+                "$push": {"audit_logs": audit_entry}
+            }
+        )
+
+        from app.services.activity_service import ActivityService
+        for lid in lead_ids:
+            try:
+                action = "lead_converted" if status == "won" else "lead_updated"
+                ActivityService.log_activity(
+                    action=action,
+                    performed_by=updated_by,
+                    details=f"Lead status bulk updated to {status}",
+                    resource_type="lead",
+                    resource_id=lid
+                )
+            except Exception:
+                pass
+
+        return result.modified_count
+
+    @staticmethod
+    def bulk_delete(
+        lead_ids: list[str],
+        deleted_by: str
+    ) -> int:
+        collection = get_leads_collection()
+        oids = []
+        for lid in lead_ids:
+            try:
+                oids.append(ObjectId(lid))
+            except InvalidId:
+                raise ValueError(f"'{lid}' is not a valid lead ID.")
+
+        existing_count = collection.count_documents({"_id": {"$in": oids}, "is_deleted": False})
+        if existing_count != len(oids):
+            raise ValueError("One or more lead IDs do not exist or are already deleted.")
+
+        audit_entry = {
+            "action": "bulk_delete",
+            "performed_by": deleted_by,
+            "details": "Bulk soft-deleted lead",
+            "timestamp": datetime.utcnow()
+        }
+
+        result = collection.update_many(
+            {"_id": {"$in": oids}},
+            {
+                "$set": {
+                    "is_deleted": True,
+                    "deleted_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow()
+                },
+                "$push": {"audit_logs": audit_entry}
+            }
+        )
+
+        from app.services.activity_service import ActivityService
+        for lid in lead_ids:
+            try:
+                ActivityService.log_activity(
+                    action="lead_deleted",
+                    performed_by=deleted_by,
+                    details="Lead bulk soft-deleted",
+                    resource_type="lead",
+                    resource_id=lid
+                )
+            except Exception:
+                pass
+
+        return result.modified_count
+

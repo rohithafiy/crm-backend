@@ -54,12 +54,19 @@ def create_app(config_override: dict = None) -> Flask:
     from app.routes.lead_routes import leads_bp
     from app.routes.client_routes import clients_bp
     from app.routes.pipeline_routes import pipeline_bp, comms_bp
+    from app.routes.portal5_communications import comm_bp as portal5_comms_bp
+    from app.routes.followup_routes import followups_bp
+    from app.routes.activity_routes import activity_bp
     from app.routes.search_routes import search_bp
 
     app.register_blueprint(leads_bp)
     app.register_blueprint(clients_bp)
     app.register_blueprint(pipeline_bp)
     app.register_blueprint(comms_bp)
+    # Contract-specific communications endpoints
+    app.register_blueprint(portal5_comms_bp)
+    app.register_blueprint(followups_bp)
+    app.register_blueprint(activity_bp)
     app.register_blueprint(search_bp)
 
     # ── Global error handlers ────────────────────────────────────────────

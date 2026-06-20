@@ -10,6 +10,7 @@ import logging
 from flask import Blueprint, g, request
 
 from app.middleware.auth_middleware import verify_token
+from app.utils.ownership import verify_ownership
 from app.services.client_service import ClientService
 from app.utils.pagination_helper import get_pagination_params, get_sort_params
 from app.utils.response_helper import error_response, paginated_response, success_response
@@ -158,7 +159,12 @@ def update_client(client_id: str):
         return error_response("Validation failed.", 400, errors=errors)
 
     try:
-        client = ClientService.update_client(client_id, data)
+        # Ownership check
+        owner_ok, owner_err = verify_ownership("client", client_id, g.current_user)
+        if not owner_ok:
+            return error_response(owner_err or "Unauthorized", 403)
+
+        client = ClientService.update_client(client_id, data, updated_by=g.current_user.get("user_id", "system"))
     except ValueError as exc:
         return error_response(str(exc), 400)
     except Exception:
@@ -187,7 +193,11 @@ def delete_client(client_id: str):
         200 on success | 404 if not found | 400 on invalid ID
     """
     try:
-        deleted = ClientService.delete_client(client_id)
+        owner_ok, owner_err = verify_ownership("client", client_id, g.current_user)
+        if not owner_ok:
+            return error_response(owner_err or "Unauthorized", 403)
+
+        deleted = ClientService.delete_client(client_id, deleted_by=g.current_user.get("user_id", "system"))
     except ValueError as exc:
         return error_response(str(exc), 400)
     except Exception:

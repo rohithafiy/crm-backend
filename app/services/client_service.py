@@ -211,7 +211,7 @@ class ClientService:
 
     @staticmethod
     def update_client(
-        client_id: str, data: dict[str, Any]
+        client_id: str, data: dict[str, Any], updated_by: str = "system"
     ) -> Optional[dict[str, Any]]:
         """
         Partially update a client document.
@@ -267,6 +267,31 @@ class ClientService:
         updates["updated_at"] = datetime.utcnow()
 
         collection.update_one({"_id": oid}, {"$set": updates})
+        # append audit log
+        try:
+            audit_entry = {
+                "action": "update",
+                "performed_by": updated_by,
+                "details": f"Updated fields: {', '.join(list(updates.keys()))}",
+                "timestamp": datetime.utcnow(),
+            }
+            collection.update_one({"_id": oid}, {"$push": {"audit_logs": audit_entry}})
+        except Exception:
+            logger.exception("Failed to append client audit log for %s", client_id)
+
+        # Log activity
+        try:
+            from app.services.activity_service import ActivityService
+            ActivityService.log_activity(
+                action="client_updated",
+                performed_by=updated_by,
+                details=f"Client updated fields: {', '.join(list(updates.keys()))}",
+                resource_type="client",
+                resource_id=client_id
+            )
+        except Exception:
+            logger.exception("Failed to log activity for client update %s", client_id)
+
         updated = collection.find_one({"_id": oid})
         return serialize_client(updated)
 
@@ -275,7 +300,7 @@ class ClientService:
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def delete_client(client_id: str) -> bool:
+    def delete_client(client_id: str, deleted_by: str = "system") -> bool:
         """
         Soft-delete a client.
 
@@ -296,6 +321,27 @@ class ClientService:
         collection = get_clients_collection()
         result = collection.update_one(
             {"_id": oid, "is_deleted": False},
-            {"$set": {"is_deleted": True, "deleted_at": datetime.utcnow()}},
+            {"$set": {"is_deleted": True, "deleted_at": datetime.utcnow(), "updated_at": datetime.utcnow()}},
         )
+        if result.modified_count > 0:
+            try:
+                collection.update_one({"_id": oid}, {"$push": {"audit_logs": {
+                    "action": "delete",
+                    "performed_by": deleted_by,
+                    "details": "Soft-deleted client",
+                    "timestamp": datetime.utcnow(),
+                }}})
+            except Exception:
+                logger.exception("Failed to append delete audit for client %s", client_id)
+            try:
+                from app.services.activity_service import ActivityService
+                ActivityService.log_activity(
+                    action="client_deleted",
+                    performed_by=deleted_by,
+                    details="Client soft-deleted",
+                    resource_type="client",
+                    resource_id=client_id
+                )
+            except Exception:
+                logger.exception("Failed to log activity for client deletion %s", client_id)
         return result.modified_count > 0

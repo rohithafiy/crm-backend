@@ -112,15 +112,30 @@ class DatabaseManager:
             sparse=True,
             name="idx_leads_email_unique",
         )
+        # Simple email index
+        leads.create_index([("email", ASCENDING)], name="idx_leads_email")
+        # Company name index
+        leads.create_index([("company_name", ASCENDING)], name="idx_leads_company_name")
+        # Status index
+        leads.create_index([("status", ASCENDING)], name="idx_leads_status")
+        # Assigned to index
+        leads.create_index([("assigned_to", ASCENDING)], name="idx_leads_assigned_to")
+        # Follow up date index
+        leads.create_index([("follow_up_date", ASCENDING)], name="idx_leads_follow_up_date")
+        # Created_at for sorting
+        leads.create_index([("created_at", DESCENDING)], name="idx_leads_created_at")
+
         # Status + assigned_to compound index for pipeline queries
         leads.create_index(
             [("status", ASCENDING), ("assigned_to", ASCENDING)],
             name="idx_leads_status_assigned",
         )
+            # Single-field indexes for performance
+            leads.create_index([("assigned_to", ASCENDING)], name="idx_leads_assigned_to")
+            leads.create_index([("company_name", ASCENDING)], name="idx_leads_company_name")
+            leads.create_index([("follow_up_date", ASCENDING)], name="idx_leads_follow_up_date")
         # Source index for filtering
         leads.create_index([("source", ASCENDING)], name="idx_leads_source")
-        # Created_at for sorting
-        leads.create_index([("created_at", DESCENDING)], name="idx_leads_created_at")
         # Soft delete filter
         leads.create_index([("is_deleted", ASCENDING)], name="idx_leads_is_deleted")
         # Portal1 request reference
@@ -155,12 +170,24 @@ class DatabaseManager:
             sparse=True,
             name="idx_clients_email_unique",
         )
+        # Simple email index
+        clients.create_index([("email", ASCENDING)], name="idx_clients_email")
+        # Company name index
+        clients.create_index([("company_name", ASCENDING)], name="idx_clients_company_name")
+        # Status index
+        clients.create_index([("status", ASCENDING)], name="idx_clients_status")
+        # Assigned to index (supports assigned_to and user_id)
+        clients.create_index([("assigned_to", ASCENDING)], sparse=True, name="idx_clients_assigned_to")
+        clients.create_index([("user_id", ASCENDING)], sparse=True, name="idx_clients_user_id")
+        # Follow up date index
+        clients.create_index([("follow_up_date", ASCENDING)], sparse=True, name="idx_clients_follow_up_date")
+        # Created at index
+        clients.create_index([("created_at", DESCENDING)], name="idx_clients_created_at")
+
         # Lead reference
         clients.create_index(
             [("lead_id", ASCENDING)], sparse=True, name="idx_clients_lead_id"
         )
-        # Status index
-        clients.create_index([("status", ASCENDING)], name="idx_clients_status")
         # Industry filter
         clients.create_index([("industry", ASCENDING)], name="idx_clients_industry")
         # Soft delete
@@ -177,7 +204,10 @@ class DatabaseManager:
             sparse=True,
             name="idx_clients_phone_normalized",
         )
+            clients.create_index([("company_name", ASCENDING)], name="idx_clients_company_name")
+            clients.create_index([("created_at", DESCENDING)], name="idx_clients_created_at")
         logger.debug("p5_clients indexes created.")
+
 
     def _create_communications_indexes(self) -> None:
         """Create indexes for p5_communications collection."""
@@ -199,6 +229,11 @@ class DatabaseManager:
         comms.create_index([("created_by", ASCENDING)], name="idx_comms_created_by")
         logger.debug("p5_communications indexes created.")
 
+            # Activity logs index (ensure efficient recent feed fetch)
+            try:
+                self._db["p5_activity_logs"].create_index([("timestamp", DESCENDING)], name="idx_activity_ts")
+            except Exception:
+                logger.exception("Failed to create p5_activity_logs index")
     @property
     def db(self) -> Database:
         """Return the active database instance."""

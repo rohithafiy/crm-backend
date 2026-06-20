@@ -10,6 +10,7 @@ import logging
 from flask import Blueprint, g, request
 
 from app.middleware.auth_middleware import verify_token
+from app.utils.ownership import verify_ownership
 from app.services.lead_service import LeadService
 from app.utils.pagination_helper import get_pagination_params, get_sort_params
 from app.utils.response_helper import error_response, paginated_response, success_response
@@ -112,6 +113,7 @@ def list_leads():
 
 # ────────────────────────────────────────────────────────────────────────────
 #  GET /api/portal5/leads/<id>
+            from app.middleware.auth_middleware import require_roles
 # ────────────────────────────────────────────────────────────────────────────
 @leads_bp.route("/<lead_id>", methods=["GET"])
 @verify_token
@@ -149,6 +151,11 @@ def update_lead(lead_id: str):
     Partially update a lead.
 
     Path param:
+                # Ownership check
+                owner_ok, owner_err = verify_ownership("lead", lead_id, g.current_user)
+                if not owner_ok:
+                    return error_response(owner_err or "Unauthorized", 403)
+
         lead_id (str): MongoDB ObjectId
 
     Body:
@@ -177,6 +184,10 @@ def update_lead(lead_id: str):
 
 
 # ────────────────────────────────────────────────────────────────────────────
+                owner_ok, owner_err = verify_ownership("lead", lead_id, g.current_user)
+                if not owner_ok:
+                    return error_response(owner_err or "Unauthorized", 403)
+
 #  DELETE /api/portal5/leads/<id>
 # ────────────────────────────────────────────────────────────────────────────
 @leads_bp.route("/<lead_id>", methods=["DELETE"])
@@ -214,6 +225,10 @@ def assign_lead(lead_id: str):
     """
     Assign a lead to a user.
 
+                owner_ok, owner_err = verify_ownership("lead", lead_id, g.current_user)
+                if not owner_ok:
+                    return error_response(owner_err or "Unauthorized", 403)
+
     Path param:
         lead_id (str): MongoDB ObjectId
 
@@ -249,9 +264,85 @@ def assign_lead(lead_id: str):
 
 
 # ────────────────────────────────────────────────────────────────────────────
+#  POST /api/portal5/leads/bulk-assign
+# ────────────────────────────────────────────────────────────────────────────
+@leads_bp.route("/bulk-assign", methods=["POST"])
+@verify_token
+@require_roles("super_admin", "ops_lead")
+def bulk_assign():
+    """Bulk assign leads to a user."""
+    data = request.get_json(silent=True) or {}
+    lead_ids = data.get("lead_ids") or []
+    assigned_to = data.get("assigned_to")
+    note = data.get("note", "")
+    if not lead_ids or not isinstance(lead_ids, list) or not assigned_to:
+        return error_response("'lead_ids' (list) and 'assigned_to' are required.", 400)
+
+    try:
+        modified = LeadService.bulk_assign(lead_ids=lead_ids, assigned_to=assigned_to, assigned_by=g.current_user["user_id"], note=note)
+        return success_response({"modified_count": modified}, "Bulk assign completed.")
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+    except Exception:
+        logger.exception("Unexpected error performing bulk assign")
+        return error_response("Internal server error.", 500)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+#  POST /api/portal5/leads/bulk-status
+# ────────────────────────────────────────────────────────────────────────────
+@leads_bp.route("/bulk-status", methods=["POST"])
+@verify_token
+@require_roles("super_admin", "ops_lead")
+def bulk_status():
+    """Bulk update status for multiple leads."""
+    data = request.get_json(silent=True) or {}
+    lead_ids = data.get("lead_ids") or []
+    status = data.get("status")
+    if not lead_ids or not isinstance(lead_ids, list) or not status:
+        return error_response("'lead_ids' (list) and 'status' are required.", 400)
+
+    try:
+        modified = LeadService.bulk_status(lead_ids=lead_ids, status=status, updated_by=g.current_user["user_id"])
+        return success_response({"modified_count": modified}, "Bulk status update completed.")
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+    except Exception:
+        logger.exception("Unexpected error performing bulk status update")
+        return error_response("Internal server error.", 500)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+#  POST /api/portal5/leads/bulk-delete
+# ────────────────────────────────────────────────────────────────────────────
+@leads_bp.route("/bulk-delete", methods=["POST"])
+@verify_token
+@require_roles("super_admin", "ops_lead")
+def bulk_delete():
+    """Bulk soft-delete leads."""
+    data = request.get_json(silent=True) or {}
+    lead_ids = data.get("lead_ids") or []
+    if not lead_ids or not isinstance(lead_ids, list):
+        return error_response("'lead_ids' (list) is required.", 400)
+
+    try:
+        modified = LeadService.bulk_delete(lead_ids=lead_ids, deleted_by=g.current_user["user_id"])
+        return success_response({"modified_count": modified}, "Bulk delete completed.")
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+    except Exception:
+        logger.exception("Unexpected error performing bulk delete")
+        return error_response("Internal server error.", 500)
+
+
+# ────────────────────────────────────────────────────────────────────────────
 #  POST /api/portal5/leads/<id>/convert
 # ────────────────────────────────────────────────────────────────────────────
 @leads_bp.route("/<lead_id>/convert", methods=["POST"])
+                owner_ok, owner_err = verify_ownership("lead", lead_id, g.current_user)
+                if not owner_ok:
+                    return error_response(owner_err or "Unauthorized", 403)
+
 @verify_token
 def convert_lead(lead_id: str):
     """

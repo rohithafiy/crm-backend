@@ -190,3 +190,28 @@ class CommunicationService:
 
         records = list(collection.find(query).sort("created_at", sort_dir))
         return [serialize_communication(r) for r in records], []
+
+    # ------------------------------------------------------------------ #
+    #  DELETE                                                              #
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def delete_communication(comm_id: str) -> tuple[bool, Optional[str]]:
+        """
+        Hard-delete a communication timeline entry.
+
+        Args:
+            comm_id: MongoDB ObjectId string
+
+        Returns:
+            (success, error_message) tuple
+        """
+        try:
+            oid = ObjectId(comm_id)
+        except InvalidId:
+            return False, f"'{comm_id}' is not a valid communication ID."
+
+        collection = get_communications_collection()
+        result = collection.delete_one({"_id": oid})
+        return result.deleted_count > 0, None
+

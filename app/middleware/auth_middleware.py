@@ -130,3 +130,108 @@ def require_roles(*roles: str) -> Callable:
         return decorated
 
     return decorator
+
+
+def verify_ownership(resource_type: str) -> Callable:
+    """
+    Decorator: enforce isolated tenant ownership check.
+    Bypassed by super_admin and ops_lead.
+    For project_manager, verifies if they are the creator or assignee of the document.
+    Logs rejected attempts with status 'rejected' to p5_activity_logs.
+    """
+    def decorator(f: Callable) -> Callable:
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            current_user = getattr(g, "current_user", None)
+            if not current_user:
+                return error_response("Authentication required", status_code=401)
+
+            role = current_user.get("role")
+            user_id = current_user.get("user_id")
+
+            # Admins always bypass ownership checks
+            if role in {"super_admin", "ops_lead"}:
+                return f(*args, **kwargs)
+
+            # Extract resource_id from route kwargs
+            resource_id = (
+                kwargs.get("lead_id") or
+                kwargs.get("client_id") or
+                kwargs.get("clientId") or
+                kwargs.get("id") or
+                kwargs.get("comm_id")
+            )
+
+            if not resource_id:
+                return f(*args, **kwargs)
+
+            from app.database.db import db_manager
+            from bson import ObjectId
+            from bson.errors import InvalidId
+            from datetime import datetime
+
+            try:
+                oid = ObjectId(resource_id)
+            except (InvalidId, TypeError):
+                # Let downstream validate format
+                return f(*args, **kwargs)
+
+            db = db_manager.db
+            authorized = False
+
+            if resource_type == "lead":
+                doc = db["p5_leads"].find_one({"_id": oid, "is_deleted": False})
+                if doc:
+                    created_by = doc.get("created_by")
+                    assigned_to = doc.get("assigned_to")
+                    if str(created_by) == str(user_id) or str(assigned_to) == str(user_id):
+                        authorized = True
+                else:
+                    return f(*args, **kwargs)
+
+            elif resource_type == "client":
+                doc = db["p5_clients"].find_one({"_id": oid, "is_deleted": False})
+                if doc:
+                    created_by = doc.get("created_by")
+                    assigned_user = doc.get("user_id")
+                    if str(created_by) == str(user_id) or str(assigned_user) == str(user_id):
+                        authorized = True
+                else:
+                    return f(*args, **kwargs)
+
+            elif resource_type == "communication":
+                doc = db["p5_communications"].find_one({"_id": oid})
+                if doc:
+                    created_by = doc.get("created_by")
+                    if str(created_by) == str(user_id):
+                        authorized = True
+                else:
+                    return f(*args, **kwargs)
+
+            else:
+                authorized = True
+
+            if not authorized:
+                action_name = f"unauthorized_{resource_type}_mutation"
+                try:
+                    db["p5_activity_logs"].insert_one({
+                        "action": action_name,
+                        "performed_by": user_id,
+                        "details": f"User {user_id} ({role}) was blocked from modifying {resource_type} {resource_id}",
+                        "resource_type": resource_type,
+                        "resource_id": resource_id,
+                        "status": "rejected",
+                        "timestamp": datetime.utcnow()
+                    })
+                except Exception:
+                    logger.exception("Failed to log unauthorized mutation activity")
+
+                return error_response(
+                    "You do not have permission to access or modify this resource.",
+                    status_code=403
+                )
+
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
+
