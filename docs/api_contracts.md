@@ -1,16 +1,17 @@
 # API Governance Standards
 
-## Versioning
+## API Base Paths
 
-All endpoints are versioned via URL prefix:
+All Portal 5 authentication endpoints use unversioned paths per the shared specification:
 
 ```
 /api/auth/login
-/api/v1/leads
-/api/v1/clients
+/api/auth/logout
+/api/auth/refresh
+/api/auth/me
 ```
 
-Current version: **v1** — `application/vnd.lti-crm.v1+json`
+Content type: `application/json`
 
 ---
 
