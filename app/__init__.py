@@ -57,8 +57,8 @@ def create_app(config_override: dict = None) -> Flask:
     db_manager.init_app(app)
 
     # ── Blueprints ───────────────────────────────────────────────────────
-    from app.routes.lead_routes import leads_bp
-    from app.routes.client_routes import clients_bp
+    from app.routes.portal5_leads import leads_bp
+    from app.routes.portal5_clients import clients_bp
     from app.routes.pipeline_routes import pipeline_bp, comms_bp
     from app.routes.portal5_communications import comm_bp as portal5_comms_bp
     from app.routes.followup_routes import followups_bp

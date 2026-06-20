@@ -6,7 +6,7 @@ import logging
 
 from flask import Blueprint, request
 
-from app.middleware.auth_middleware import verify_token
+from app.middleware.auth_middleware import verify_token, require_roles
 from app.services.search_service import SearchService
 from app.utils.pagination_helper import get_pagination_params
 from app.utils.response_helper import error_response, paginated_response, success_response
@@ -18,6 +18,7 @@ search_bp = Blueprint("search", __name__, url_prefix="/api/portal5/search")
 
 @search_bp.route("", methods=["GET"])
 @verify_token
+@require_roles("super_admin", "ops_lead", "project_manager")
 def search_all():
     """Query params:
     q (str): search keywords

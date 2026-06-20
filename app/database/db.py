@@ -141,9 +141,8 @@ class DatabaseManager:
             name="idx_leads_portal1_ref",
         )
         # Full-text search index
-        # Full-text search index (include both legacy and canonical name fields)
         leads.create_index(
-            [("lead_name", TEXT), ("full_name", TEXT), ("company_name", TEXT), ("email", TEXT)],
+            [("full_name", TEXT), ("company_name", TEXT), ("email", TEXT)],
             name="idx_leads_text_search",
         )
         # Normalized phone index to help prevent duplicates (sparse)
@@ -218,7 +217,7 @@ class DatabaseManager:
             name="idx_comms_lead_timeline",
         )
         # Type filter
-        comms.create_index([("type", ASCENDING)], name="idx_comms_type")
+        comms.create_index([("communication_type", ASCENDING)], name="idx_comms_communication_type")
         # Created_by
         comms.create_index([("created_by", ASCENDING)], name="idx_comms_created_by")
         logger.debug("p5_communications indexes created.")

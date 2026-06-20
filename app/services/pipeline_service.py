@@ -13,7 +13,7 @@ from bson import ObjectId
 from bson.errors import InvalidId
 
 from app.database.db import get_leads_collection
-from app.models.lead_model import LeadStatus, serialize_lead
+from app.models.p5_lead import LeadStatus, serialize_lead
 from app.validators.pipeline_validator import validate_stage_transition
 
 logger = logging.getLogger(__name__)

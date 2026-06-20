@@ -9,7 +9,7 @@ import logging
 
 from flask import Blueprint, g, request
 
-from app.middleware.auth_middleware import verify_token
+from app.middleware.auth_middleware import verify_token, require_roles
 from app.services.communication_service import CommunicationService
 from app.services.activity_service import ActivityService
 from app.utils.ownership import verify_ownership
@@ -22,6 +22,7 @@ comm_bp = Blueprint("portal5_communications", __name__, url_prefix="/api/portal5
 
 @comm_bp.route("/clients/<client_id>/communications", methods=["GET"])
 @verify_token
+@require_roles("super_admin", "ops_lead", "project_manager")
 def list_client_communications(client_id: str):
     """
     GET /api/portal5/clients/:clientId/communications
@@ -38,6 +39,7 @@ def list_client_communications(client_id: str):
 
 @comm_bp.route("/clients/<client_id>/communications", methods=["POST"])
 @verify_token
+@require_roles("super_admin", "ops_lead", "project_manager")
 def create_client_communication(client_id: str):
     """
     POST /api/portal5/clients/:clientId/communications
@@ -57,7 +59,7 @@ def create_client_communication(client_id: str):
         ActivityService.log_activity(
             action="communication_created",
             performed_by=g.current_user["user_id"],
-            details=f"Logged communication of type '{comm.get('type')}' for client {client_id}",
+            details=f"Logged communication of type '{comm.get('communication_type')}' for client {client_id}",
             resource_type="client",
             resource_id=client_id,
         )
@@ -69,6 +71,7 @@ def create_client_communication(client_id: str):
 
 @comm_bp.route("/communications/<comm_id>", methods=["DELETE"])
 @verify_token
+@require_roles("super_admin", "ops_lead", "project_manager")
 def delete_communication(comm_id: str):
     """
     DELETE /api/portal5/communications/:id

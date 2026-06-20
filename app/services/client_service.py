@@ -14,7 +14,7 @@ from bson.errors import InvalidId
 from pymongo.errors import DuplicateKeyError
 
 from app.database.db import get_clients_collection
-from app.models.client_model import build_client_document, serialize_client
+from app.models.p5_client import build_client_document, serialize_client
 from app.utils.phone_helper import normalize_phone
 from app.utils.pagination_helper import build_pagination_query
 from app.services.communication_service import CommunicationService
@@ -267,17 +267,6 @@ class ClientService:
         updates["updated_at"] = datetime.utcnow()
 
         collection.update_one({"_id": oid}, {"$set": updates})
-        # append audit log
-        try:
-            audit_entry = {
-                "action": "update",
-                "performed_by": updated_by,
-                "details": f"Updated fields: {', '.join(list(updates.keys()))}",
-                "timestamp": datetime.utcnow(),
-            }
-            collection.update_one({"_id": oid}, {"$push": {"audit_logs": audit_entry}})
-        except Exception:
-            logger.exception("Failed to append client audit log for %s", client_id)
 
         # Log activity
         try:
@@ -324,15 +313,6 @@ class ClientService:
             {"$set": {"is_deleted": True, "deleted_at": datetime.utcnow(), "updated_at": datetime.utcnow()}},
         )
         if result.modified_count > 0:
-            try:
-                collection.update_one({"_id": oid}, {"$push": {"audit_logs": {
-                    "action": "delete",
-                    "performed_by": deleted_by,
-                    "details": "Soft-deleted client",
-                    "timestamp": datetime.utcnow(),
-                }}})
-            except Exception:
-                logger.exception("Failed to append delete audit for client %s", client_id)
             try:
                 from app.services.activity_service import ActivityService
                 ActivityService.log_activity(

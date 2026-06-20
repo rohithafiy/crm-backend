@@ -14,7 +14,7 @@ from bson.errors import InvalidId
 from pymongo.errors import DuplicateKeyError
 
 from app.database.db import get_leads_collection
-from app.models.lead_model import (
+from app.models.p5_lead import (
     LeadStatus,
     build_lead_document,
     serialize_lead,
@@ -184,7 +184,6 @@ class LeadService:
             query["source"] = source
         if search:
             query["$or"] = [
-                {"lead_name": {"$regex": search, "$options": "i"}},
                 {"full_name": {"$regex": search, "$options": "i"}},
                 {"company_name": {"$regex": search, "$options": "i"}},
                 {"email": {"$regex": search, "$options": "i"}},
@@ -210,7 +209,7 @@ class LeadService:
         skip, lim = build_pagination_query(page, limit)
 
         # Sorting
-        allowed = {"created_at", "updated_at", "lead_name", "company_name", "email", "status"}
+        allowed = {"created_at", "updated_at", "full_name", "company_name", "email", "status"}
         sf = sort_field if sort_field in allowed else "created_at"
         sd = -1 if sort_order.lower() == "desc" else 1
 
@@ -517,8 +516,8 @@ class LeadService:
 
         # Build client data from lead
         client_data = {
-            "company_name": lead.get("company_name") or lead.get("lead_name") or lead.get("full_name", ""),
-            "contact_person": lead.get("lead_name") or lead.get("full_name", ""),
+            "company_name": lead.get("company_name") or lead.get("full_name", ""),
+            "contact_person": lead.get("full_name", ""),
             "email": lead.get("email", ""),
             "phone": lead.get("phone", ""),
             "industry": lead.get("industry", ""),

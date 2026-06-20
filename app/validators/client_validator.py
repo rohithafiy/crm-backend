@@ -8,7 +8,7 @@ Author: P5-A2 (CRM Backend Engineer)
 import re
 from typing import Any
 
-from app.models.client_model import ClientStatus, REQUIRED_FIELDS
+from app.models.p5_client import ClientStatus, REQUIRED_FIELDS
 
 _EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
 _PHONE_RE = re.compile(r"^\+?[\d\s\-]{7,15}$")
@@ -59,10 +59,10 @@ def validate_create_client(data: dict[str, Any]) -> list[str]:
     if gst and not _GST_RE.match(gst):
         errors.append(f"'{gst}' is not a valid GST number.")
 
-    # Address (optional but structured)
+    # Address (optional string)
     address = data.get("address")
-    if address is not None and not isinstance(address, dict):
-        errors.append("'address' must be an object.")
+    if address is not None and not isinstance(address, str):
+        errors.append("'address' must be a string.")
 
     return errors
 
@@ -116,7 +116,7 @@ def validate_update_client(data: dict[str, Any]) -> list[str]:
 
     if "address" in data:
         address = data.get("address")
-        if address is not None and not isinstance(address, dict):
-            errors.append("'address' must be an object.")
+        if address is not None and not isinstance(address, str):
+            errors.append("'address' must be a string.")
 
     return errors

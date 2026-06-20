@@ -7,7 +7,7 @@ Author: P5-A2 (CRM Backend Engineer)
 
 from typing import Any
 
-from app.models.lead_model import LeadStatus, VALID_TRANSITIONS
+from app.models.p5_lead import LeadStatus, VALID_TRANSITIONS
 
 VALID_STAGES = {s.value for s in LeadStatus}
 

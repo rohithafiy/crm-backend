@@ -8,7 +8,7 @@ Author: P5-A2 (CRM Backend Engineer)
 import re
 from typing import Any
 
-from app.models.lead_model import LeadSource, LeadStatus, REQUIRED_FIELDS
+from app.models.p5_lead import LeadSource, LeadStatus, REQUIRED_FIELDS
 
 # RFC 5322 simplified email regex
 _EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")

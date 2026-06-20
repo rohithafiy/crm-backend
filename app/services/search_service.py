@@ -12,8 +12,8 @@ from bson import ObjectId
 from pymongo.errors import OperationFailure
 
 from app.database.db import get_clients_collection, get_leads_collection
-from app.models.client_model import serialize_client
-from app.models.lead_model import serialize_lead
+from app.models.p5_client import serialize_client
+from app.models.p5_lead import serialize_lead
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,8 @@ class SearchService:
             except Exception:
                 logger.debug("Text search not supported for leads or failed; falling back to regex.")
                 # Fallback to regex partial matching on name/company/email
-                qry = SearchService._regex_query(["lead_name", "full_name", "company_name", "email"], q)
+                qry = SearchService._regex_query(["full_name", "company_name", "email"], q)
+                qry["is_deleted"] = False
                 leads = list(get_leads_collection().find(qry).limit(100))
                 for l in leads:
                     results.append({"type": "lead", "result": serialize_lead(l)})
@@ -83,6 +84,7 @@ class SearchService:
             except Exception:
                 logger.debug("Text search not supported for clients or failed; falling back to regex.")
                 qry = SearchService._regex_query(["company_name", "contact_person", "email"], q)
+                qry["is_deleted"] = False
                 clients = list(clients_coll.find(qry).limit(100))
                 for c in clients:
                     results.append({"type": "client", "result": serialize_client(c)})

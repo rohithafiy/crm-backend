@@ -12,7 +12,7 @@ from bson import ObjectId
 from bson.errors import InvalidId
 
 from app.database.db import get_communications_collection
-from app.models.communication_model import (
+from app.models.p5_communication import (
     CommunicationType,
     build_communication_document,
     serialize_communication,
@@ -35,10 +35,9 @@ def _validate_communication_payload(data: dict[str, Any]) -> list[str]:
     """
     errors: list[str] = []
 
-    # Accept either `type` or `communication_type` as the field
-    comm_type = (data.get("type") or data.get("communication_type") or "").strip()
+    comm_type = (data.get("communication_type") or data.get("type") or "").strip()
     if not comm_type:
-        errors.append("'type' is required.")
+        errors.append("'communication_type' is required.")
     elif comm_type not in VALID_TYPES:
         errors.append(
             f"Invalid type '{comm_type}'. Allowed: {sorted(VALID_TYPES)}."
@@ -138,7 +137,7 @@ class CommunicationService:
                 return [], [
                     f"Invalid type '{comm_type}'. Allowed: {sorted(VALID_TYPES)}."
                 ]
-            query["type"] = comm_type
+            query["communication_type"] = comm_type
         # Determine sort order: 'asc' for oldest-first, 'desc' for newest-first
         sort_dir = -1 if order.lower() == "desc" else 1
 
@@ -181,7 +180,7 @@ class CommunicationService:
                 return [], [
                     f"Invalid type '{comm_type}'. Allowed: {sorted(VALID_TYPES)}."
                 ]
-            query["type"] = comm_type
+            query["communication_type"] = comm_type
         # Determine sort order: 'asc' for oldest-first, 'desc' for newest-first
         sort_dir = -1 if order.lower() == "desc" else 1
 

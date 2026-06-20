@@ -9,7 +9,7 @@ import logging
 
 from flask import Blueprint
 
-from app.middleware.auth_middleware import verify_token
+from app.middleware.auth_middleware import verify_token, require_roles
 from app.services.activity_service import ActivityService
 from app.utils.response_helper import success_response, error_response
 
@@ -20,6 +20,7 @@ activity_bp = Blueprint("activity", __name__, url_prefix="/api/portal5")
 
 @activity_bp.route("/activity-feed", methods=["GET"])
 @verify_token
+@require_roles("super_admin", "ops_lead", "project_manager")
 def activity_feed():
     try:
         limit = 50
@@ -48,6 +49,7 @@ activity_bp = Blueprint("activity", __name__, url_prefix="/api/portal5/activity-
 
 @activity_bp.route("", methods=["GET"])
 @verify_token
+@require_roles("super_admin", "ops_lead", "project_manager")
 def get_activity_feed():
     """
     Get recent aggregated activity feed.

@@ -9,7 +9,7 @@ import logging
 
 from flask import Blueprint, g, request
 
-from app.middleware.auth_middleware import verify_token
+from app.middleware.auth_middleware import verify_token, require_roles
 from app.services.communication_service import CommunicationService
 from app.services.pipeline_service import PipelineService
 from app.utils.response_helper import error_response, success_response
@@ -26,6 +26,7 @@ comms_bp = Blueprint("communications", __name__, url_prefix="/api/portal5/commun
 # ────────────────────────────────────────────────────────────────────────────
 @pipeline_bp.route("/<lead_id>", methods=["PUT"])
 @verify_token
+@require_roles("super_admin", "ops_lead", "project_manager")
 def update_pipeline_stage(lead_id: str):
     """
     Move a lead to a new pipeline stage.
@@ -75,6 +76,7 @@ def update_pipeline_stage(lead_id: str):
 # ────────────────────────────────────────────────────────────────────────────
 @pipeline_bp.route("", methods=["GET"])
 @verify_token
+@require_roles("super_admin", "ops_lead", "project_manager")
 def get_pipeline_board():
     """
     Get the full pipeline board grouped by stage.
@@ -105,6 +107,7 @@ def get_pipeline_board():
 # ────────────────────────────────────────────────────────────────────────────
 @comms_bp.route("", methods=["POST"])
 @verify_token
+@require_roles("super_admin", "ops_lead", "project_manager")
 def create_communication():
     """
     Log a new communication entry.
@@ -139,6 +142,7 @@ def create_communication():
 # ────────────────────────────────────────────────────────────────────────────
 @comms_bp.route("/client/<client_id>", methods=["GET"])
 @verify_token
+@require_roles("super_admin", "ops_lead", "project_manager")
 def get_client_communications(client_id: str):
     """
     Get communication timeline for a client.
@@ -167,6 +171,7 @@ def get_client_communications(client_id: str):
 # ────────────────────────────────────────────────────────────────────────────
 @comms_bp.route("/lead/<lead_id>", methods=["GET"])
 @verify_token
+@require_roles("super_admin", "ops_lead", "project_manager")
 def get_lead_communications(lead_id: str):
     """
     Get communication timeline for a lead.
