@@ -47,8 +47,8 @@ def register_rate_limit(app):
 
 
 def log_audit_event(user_id, action, resource, details=None):
-    import logging
     import json
+    import logging
     event = {
         "type": "audit",
         "user_id": user_id,
@@ -60,8 +60,8 @@ def log_audit_event(user_id, action, resource, details=None):
 
 
 def audit_login_attempt(user_id, success, ip_address=None):
-    import logging
     import json
+    import logging
     ip = ip_address or request.remote_addr
     event = {
         "type": "audit_login",

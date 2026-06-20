@@ -62,7 +62,10 @@ PASSWORD_RULES = [
     ValidationRule(
         "password", required=True, field_type=str, min_len=8, max_len=128,
         pattern=r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?`~]).+$",
-        message="Password must be at least 8 characters with uppercase, lowercase, a number, and a special character",
+        message=(
+            "Password must be at least 8 characters with uppercase, "
+            "lowercase, a number, and a special character"
+        ),
     ),
 ]
 

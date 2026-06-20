@@ -1,20 +1,20 @@
 from datetime import datetime, timezone
 from functools import wraps
+
 from bson.objectid import ObjectId
 from flask import Blueprint, g, request
 
 from app.utils import db as _db
 from app.utils.api_response import (
     api_response,
-    bad_request,
     created,
     forbidden,
     not_found,
     paginated,
     success,
 )
-from app.utils.permission_helper import verify_client_ownership
 from app.utils.audit_helper import log_audit
+from app.utils.permission_helper import verify_client_ownership
 from app.utils.validation import ValidationRule, validate_request
 
 client_management_bp = Blueprint("client_management", __name__)
@@ -44,18 +44,18 @@ def require_client_ownership(resource_type, id_field="id"):
 def client_dashboard():
     user_id = getattr(g, "user_id", None)
     db = _db.get_db()
-    
+
     # Aggregate data belonging to the client
     projects = list(db.client_projects.find({"owner_id": user_id}))
     files = list(db.client_files.find({"owner_id": user_id}))
     messages = list(db.client_messages.find({"owner_id": user_id}))
     invoices = list(db.client_invoices.find({"owner_id": user_id}))
     payments = list(db.client_payments.find({"owner_id": user_id}))
-    
+
     for coll in (projects, files, messages, invoices, payments):
         for item in coll:
             item["_id"] = str(item["_id"])
-            
+
     dashboard_data = {
         "projects_count": len(projects),
         "files_count": len(files),
@@ -65,7 +65,7 @@ def client_dashboard():
         "recent_projects": projects[:5],
         "recent_invoices": invoices[:5],
     }
-    
+
     return success(data=dashboard_data)
 
 
@@ -83,11 +83,11 @@ def list_projects():
     user_id = getattr(g, "user_id", None)
     page = max(1, request.args.get("page", 1, type=int))
     per_page = min(100, max(1, request.args.get("per_page", 20, type=int)))
-    
+
     query = {}
     if not any(r in getattr(g, "roles", []) for r in ["super_admin", "ops_lead"]):
         query["owner_id"] = user_id
-        
+
     total = db.client_projects.count_documents(query)
     cursor = db.client_projects.find(query).sort("created_at", -1)
     projects = list(cursor.skip((page - 1) * per_page).limit(per_page))
@@ -102,7 +102,7 @@ def create_project():
     error = validate_request(CREATE_PROJECT_RULES, data)
     if error:
         return error
-        
+
     project = {
         "title": data["title"],
         "description": data.get("description", ""),
@@ -113,7 +113,7 @@ def create_project():
     db = _db.get_db()
     result = db.client_projects.insert_one(project)
     project["_id"] = str(result.inserted_id)
-    
+
     log_audit(g.user_id, "project_create", str(result.inserted_id))
     return created(data={"project": project}, message="Project created")
 
@@ -136,11 +136,11 @@ def update_project(project_id):
     db = _db.get_db()
     updates = {k: v for k, v in data.items() if k in ("title", "description")}
     updates["updated_at"] = datetime.now(timezone.utc)
-    
+
     result = db.client_projects.update_one({"_id": ObjectId(project_id)}, {"$set": updates})
     if result.matched_count == 0:
         return not_found(message="Project not found")
-        
+
     p = db.client_projects.find_one({"_id": ObjectId(project_id)})
     p["_id"] = str(p["_id"])
     log_audit(g.user_id, "project_update", project_id)
@@ -172,11 +172,11 @@ def list_files():
     user_id = getattr(g, "user_id", None)
     page = max(1, request.args.get("page", 1, type=int))
     per_page = min(100, max(1, request.args.get("per_page", 20, type=int)))
-    
+
     query = {}
     if not any(r in getattr(g, "roles", []) for r in ["super_admin", "ops_lead"]):
         query["owner_id"] = user_id
-        
+
     total = db.client_files.count_documents(query)
     cursor = db.client_files.find(query).sort("created_at", -1)
     files = list(cursor.skip((page - 1) * per_page).limit(per_page))
@@ -191,7 +191,7 @@ def create_file():
     error = validate_request(CREATE_FILE_RULES, data)
     if error:
         return error
-        
+
     file_doc = {
         "filename": data["filename"],
         "file_url": data["file_url"],
@@ -224,11 +224,11 @@ def update_file(file_id):
     db = _db.get_db()
     updates = {k: v for k, v in data.items() if k in ("filename", "file_url")}
     updates["updated_at"] = datetime.now(timezone.utc)
-    
+
     result = db.client_files.update_one({"_id": ObjectId(file_id)}, {"$set": updates})
     if result.matched_count == 0:
         return not_found(message="File not found")
-        
+
     f = db.client_files.find_one({"_id": ObjectId(file_id)})
     f["_id"] = str(f["_id"])
     return success(data={"file": f}, message="File updated")
@@ -258,11 +258,11 @@ def list_messages():
     user_id = getattr(g, "user_id", None)
     page = max(1, request.args.get("page", 1, type=int))
     per_page = min(100, max(1, request.args.get("per_page", 20, type=int)))
-    
+
     query = {}
     if not any(r in getattr(g, "roles", []) for r in ["super_admin", "ops_lead"]):
         query["owner_id"] = user_id
-        
+
     total = db.client_messages.count_documents(query)
     cursor = db.client_messages.find(query).sort("created_at", -1)
     messages = list(cursor.skip((page - 1) * per_page).limit(per_page))
@@ -277,7 +277,7 @@ def create_message():
     error = validate_request(CREATE_MESSAGE_RULES, data)
     if error:
         return error
-        
+
     msg = {
         "content": data["content"],
         "owner_id": getattr(g, "user_id", None),
@@ -307,11 +307,11 @@ def update_message(message_id):
     data = request.get_json() or {}
     db = _db.get_db()
     updates = {"content": data.get("content", ""), "updated_at": datetime.now(timezone.utc)}
-    
+
     result = db.client_messages.update_one({"_id": ObjectId(message_id)}, {"$set": updates})
     if result.matched_count == 0:
         return not_found(message="Message not found")
-        
+
     m = db.client_messages.find_one({"_id": ObjectId(message_id)})
     m["_id"] = str(m["_id"])
     return success(data={"message": m}, message="Message updated")
@@ -341,11 +341,11 @@ def list_invoices():
     user_id = getattr(g, "user_id", None)
     page = max(1, request.args.get("page", 1, type=int))
     per_page = min(100, max(1, request.args.get("per_page", 20, type=int)))
-    
+
     query = {}
     if not any(r in getattr(g, "roles", []) for r in ["super_admin", "ops_lead"]):
         query["owner_id"] = user_id
-        
+
     total = db.client_invoices.count_documents(query)
     cursor = db.client_invoices.find(query).sort("created_at", -1)
     invoices = list(cursor.skip((page - 1) * per_page).limit(per_page))
@@ -360,7 +360,7 @@ def create_invoice():
     error = validate_request(CREATE_INVOICE_RULES, data)
     if error:
         return error
-        
+
     invoice = {
         "amount": data["amount"],
         "description": data.get("description", ""),
@@ -394,11 +394,11 @@ def update_invoice(invoice_id):
     db = _db.get_db()
     updates = {k: v for k, v in data.items() if k in ("amount", "description", "status")}
     updates["updated_at"] = datetime.now(timezone.utc)
-    
+
     result = db.client_invoices.update_one({"_id": ObjectId(invoice_id)}, {"$set": updates})
     if result.matched_count == 0:
         return not_found(message="Invoice not found")
-        
+
     inv = db.client_invoices.find_one({"_id": ObjectId(invoice_id)})
     inv["_id"] = str(inv["_id"])
     log_audit(g.user_id, "invoice_update", invoice_id)
@@ -430,11 +430,11 @@ def list_payments():
     user_id = getattr(g, "user_id", None)
     page = max(1, request.args.get("page", 1, type=int))
     per_page = min(100, max(1, request.args.get("per_page", 20, type=int)))
-    
+
     query = {}
     if not any(r in getattr(g, "roles", []) for r in ["super_admin", "ops_lead"]):
         query["owner_id"] = user_id
-        
+
     total = db.client_payments.count_documents(query)
     cursor = db.client_payments.find(query).sort("created_at", -1)
     payments = list(cursor.skip((page - 1) * per_page).limit(per_page))
@@ -449,7 +449,7 @@ def create_payment():
     error = validate_request(CREATE_PAYMENT_RULES, data)
     if error:
         return error
-        
+
     payment = {
         "amount": data["amount"],
         "invoice_id": data["invoice_id"],
@@ -460,14 +460,17 @@ def create_payment():
     db = _db.get_db()
     result = db.client_payments.insert_one(payment)
     payment["_id"] = str(result.inserted_id)
-    
+
     # Also update invoice status to paid if payment is recorded
     db.client_invoices.update_one(
         {"_id": ObjectId(data["invoice_id"])},
         {"$set": {"status": "paid", "updated_at": datetime.now(timezone.utc)}}
     )
-    
-    log_audit(g.user_id, "payment_create", str(result.inserted_id), {"invoice_id": data["invoice_id"]})
+
+    log_audit(
+        g.user_id, "payment_create", str(result.inserted_id),
+        {"invoice_id": data["invoice_id"]}
+    )
     return created(data={"payment": payment}, message="Payment recorded")
 
 @client_management_bp.route("/payments/<payment_id>", methods=["GET"])
@@ -488,11 +491,11 @@ def update_payment(payment_id):
     data = request.get_json() or {}
     db = _db.get_db()
     updates = {"amount": data.get("amount"), "updated_at": datetime.now(timezone.utc)}
-    
+
     result = db.client_payments.update_one({"_id": ObjectId(payment_id)}, {"$set": updates})
     if result.matched_count == 0:
         return not_found(message="Payment not found")
-        
+
     p = db.client_payments.find_one({"_id": ObjectId(payment_id)})
     p["_id"] = str(p["_id"])
     log_audit(g.user_id, "payment_update", payment_id)

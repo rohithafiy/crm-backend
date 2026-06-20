@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
+
 from app.utils import db as _db
+
 
 def log_audit(actor, action, target, metadata=None):
     """Immutable audit logging for security compliance.

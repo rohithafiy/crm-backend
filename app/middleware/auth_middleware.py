@@ -2,7 +2,6 @@ from flask import g, request
 
 from app.configs.security_config import SecurityConfig
 from app.utils import db as _db
-from app.utils.api_response import unauthorized
 from app.utils.jwt_helper import decode_token, get_token_from_header
 
 

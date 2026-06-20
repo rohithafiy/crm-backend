@@ -15,11 +15,10 @@ from app.utils.api_response import (
     too_many_requests,
     unauthorized,
 )
-from app.utils.jwt_helper import create_access_token, create_refresh_token, decode_token
-from app.utils.role_helper import validate_role
-from app.utils.validation import EMAIL_RULES, LOGIN_RULES, validate_request
-from app.utils.limiter import limiter
 from app.utils.audit_helper import log_audit
+from app.utils.jwt_helper import create_access_token, create_refresh_token, decode_token
+from app.utils.limiter import limiter
+from app.utils.validation import LOGIN_RULES, validate_request
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -71,8 +70,16 @@ def _set_auth_cookies(response, access_token, refresh_token):
 
 
 def _clear_auth_cookies(response):
-    response.set_cookie("access_token", "", httponly=True, secure=True, samesite="Strict", max_age=0, path="/")
-    response.set_cookie("refresh_token", "", httponly=True, secure=True, samesite="Strict", max_age=0, path="/api/auth")
+    response.set_cookie(
+        "access_token", "",
+        httponly=True, secure=True, samesite="Strict",
+        max_age=0, path="/",
+    )
+    response.set_cookie(
+        "refresh_token", "",
+        httponly=True, secure=True, samesite="Strict",
+        max_age=0, path="/api/auth",
+    )
 
 
 def _build_token_response(user_id, roles, portals):
@@ -107,7 +114,10 @@ def login():
 
     email = data["email"]
     if _check_account_lockout(email):
-        log_audit(email, "login_failure", "auth", {"reason": "account_locked", "ip_address": request.remote_addr})
+        log_audit(
+            email, "login_failure", "auth",
+            {"reason": "account_locked", "ip_address": request.remote_addr}
+        )
         return too_many_requests(
             message="Account temporarily locked due to too many failed attempts",
             code="ACCOUNT_LOCKED",
@@ -117,22 +127,31 @@ def login():
     user = db.users.find_one({"email": email})
     if not user:
         _record_failed_login(email)
-        log_audit(email, "login_failure", "auth", {"reason": "user_not_found", "ip_address": request.remote_addr})
+        log_audit(
+            email, "login_failure", "auth",
+            {"reason": "user_not_found", "ip_address": request.remote_addr}
+        )
         return unauthorized(message="Invalid credentials")
 
     if not bcrypt.checkpw(data["password"].encode(), user["password_hash"].encode()):
         _record_failed_login(email)
-        log_audit(email, "login_failure", "auth", {"reason": "incorrect_password", "ip_address": request.remote_addr})
+        log_audit(
+            email, "login_failure", "auth",
+            {"reason": "incorrect_password", "ip_address": request.remote_addr}
+        )
         return unauthorized(message="Invalid credentials")
 
     _clear_login_attempts(email)
 
     if not user.get("is_active", True):
-        log_audit(str(user["_id"]), "login_failure", "auth", {"reason": "account_deactivated", "ip_address": request.remote_addr})
+        log_audit(
+            str(user["_id"]), "login_failure", "auth",
+            {"reason": "account_deactivated", "ip_address": request.remote_addr}
+        )
         return forbidden(message="Account is deactivated", code="ACCOUNT_DEACTIVATED")
 
     user_id = str(user["_id"])
-    
+
     # Align role/roles schema
     role = user.get("role")
     roles = user.get("roles", [])
@@ -168,13 +187,19 @@ def refresh():
     jti = payload.get("jti")
     if db.token_blacklist.find_one({"jti": jti}):
         from app.utils.api_response import error_response
-        log_audit(payload.get("sub", "unknown"), "token_refresh_failure", "auth", {"reason": "token_blacklisted"})
+        log_audit(
+            payload.get("sub", "unknown"), "token_refresh_failure", "auth",
+            {"reason": "token_blacklisted"}
+        )
         return error_response(message="Invalid or expired token", status_code=401)
 
     user = db.users.find_one({"_id": ObjectId(payload["sub"])})
     if not user:
         from app.utils.api_response import error_response
-        log_audit(payload.get("sub", "unknown"), "token_refresh_failure", "auth", {"reason": "user_not_found"})
+        log_audit(
+            payload.get("sub", "unknown"), "token_refresh_failure", "auth",
+            {"reason": "user_not_found"}
+        )
         return error_response(message="Invalid or expired token", status_code=401)
 
     if not user.get("is_active", True):
