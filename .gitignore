@@ -130,3 +130,19 @@ cython_debug/
 .env.test.local
 .env.production.local
 *.env
+
+# Node and frontend
+node_modules/
+
+# Next.js build
+.next/
+
+# Distribution / build folders
+dist/
+
+# Personal / local files
+*.key
+*.pem
+.credentials
+personal_notes*
+

@@ -9,7 +9,7 @@ import logging
 
 from flask import Blueprint, g, request
 
-from app.middleware.auth_middleware import verify_token
+from app.middleware.auth_middleware import verify_token, require_roles
 from app.utils.ownership import verify_ownership
 from app.services.lead_service import LeadService
 from app.utils.pagination_helper import get_pagination_params, get_sort_params
@@ -113,7 +113,6 @@ def list_leads():
 
 # ────────────────────────────────────────────────────────────────────────────
 #  GET /api/portal5/leads/<id>
-            from app.middleware.auth_middleware import require_roles
 # ────────────────────────────────────────────────────────────────────────────
 @leads_bp.route("/<lead_id>", methods=["GET"])
 @verify_token
@@ -151,11 +150,6 @@ def update_lead(lead_id: str):
     Partially update a lead.
 
     Path param:
-                # Ownership check
-                owner_ok, owner_err = verify_ownership("lead", lead_id, g.current_user)
-                if not owner_ok:
-                    return error_response(owner_err or "Unauthorized", 403)
-
         lead_id (str): MongoDB ObjectId
 
     Body:
@@ -168,6 +162,11 @@ def update_lead(lead_id: str):
     errors = validate_update_lead(data)
     if errors:
         return error_response("Validation failed.", 400, errors=errors)
+
+    # Ownership check
+    owner_ok, owner_err = verify_ownership("lead", lead_id, g.current_user)
+    if not owner_ok:
+        return error_response(owner_err or "Unauthorized", 403)
 
     try:
         lead = LeadService.update_lead(lead_id, data)
@@ -184,10 +183,6 @@ def update_lead(lead_id: str):
 
 
 # ────────────────────────────────────────────────────────────────────────────
-                owner_ok, owner_err = verify_ownership("lead", lead_id, g.current_user)
-                if not owner_ok:
-                    return error_response(owner_err or "Unauthorized", 403)
-
 #  DELETE /api/portal5/leads/<id>
 # ────────────────────────────────────────────────────────────────────────────
 @leads_bp.route("/<lead_id>", methods=["DELETE"])
@@ -202,6 +197,11 @@ def delete_lead(lead_id: str):
     Returns:
         200 on success | 404 if not found | 400 on invalid ID
     """
+    # Ownership check
+    owner_ok, owner_err = verify_ownership("lead", lead_id, g.current_user)
+    if not owner_ok:
+        return error_response(owner_err or "Unauthorized", 403)
+
     try:
         deleted = LeadService.delete_lead(lead_id)
     except ValueError as exc:
@@ -225,10 +225,6 @@ def assign_lead(lead_id: str):
     """
     Assign a lead to a user.
 
-                owner_ok, owner_err = verify_ownership("lead", lead_id, g.current_user)
-                if not owner_ok:
-                    return error_response(owner_err or "Unauthorized", 403)
-
     Path param:
         lead_id (str): MongoDB ObjectId
 
@@ -243,6 +239,11 @@ def assign_lead(lead_id: str):
     errors = validate_assign_lead(data)
     if errors:
         return error_response("Validation failed.", 400, errors=errors)
+
+    # Ownership check
+    owner_ok, owner_err = verify_ownership("lead", lead_id, g.current_user)
+    if not owner_ok:
+        return error_response(owner_err or "Unauthorized", 403)
 
     try:
         lead = LeadService.assign_lead(
@@ -339,10 +340,6 @@ def bulk_delete():
 #  POST /api/portal5/leads/<id>/convert
 # ────────────────────────────────────────────────────────────────────────────
 @leads_bp.route("/<lead_id>/convert", methods=["POST"])
-                owner_ok, owner_err = verify_ownership("lead", lead_id, g.current_user)
-                if not owner_ok:
-                    return error_response(owner_err or "Unauthorized", 403)
-
 @verify_token
 def convert_lead(lead_id: str):
     """
@@ -359,6 +356,11 @@ def convert_lead(lead_id: str):
     Returns:
         201 with {lead, client} | 400 on business rule violation | 404 if not found
     """
+    # Ownership check
+    owner_ok, owner_err = verify_ownership("lead", lead_id, g.current_user)
+    if not owner_ok:
+        return error_response(owner_err or "Unauthorized", 403)
+
     try:
         result = LeadService.convert_lead(
             lead_id=lead_id,

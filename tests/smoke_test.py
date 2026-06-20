@@ -65,7 +65,7 @@ if __name__ == '__main__':
 
     # Create lead
     lname = f'SmokeLead-{int(time.time())}'
-    lead_payload = {"lead_name": lname, "email": f"lead{int(time.time())}@smoke.local", "phone": "+19999999999", "source": "website"}
+    lead_payload = {"full_name": lname, "email": f"lead{int(time.time())}@smoke.local", "phone": "+19999999999", "source": "website", "service_type": "consulting"}
     status, res = req_post('/leads', lead_payload)
     print('Create lead:', status, res)
     lead_id = None

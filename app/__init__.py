@@ -46,6 +46,12 @@ def create_app(config_override: dict = None) -> Flask:
         level=getattr(logging, log_level, logging.INFO),
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
+    # Suppress noisy DeprecationWarnings in dev output and reduce werkzeug verbosity
+    import warnings
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    # Raise werkzeug logging level to ERROR to hide the dev-server warning
+    # ("This is a development server...") and debugger messages in dev runs.
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
     # ── Database ─────────────────────────────────────────────────────────
     db_manager.init_app(app)

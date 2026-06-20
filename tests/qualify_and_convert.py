@@ -39,25 +39,18 @@ def req(method, path, body=None):
 
 
 if __name__ == '__main__':
-    print('Finding latest lead...')
-    status, res = req('GET', '/leads?page=1&limit=1')
-    print('GET /leads ->', status)
-    print(res)
-    if status != 200 or not isinstance(res, dict) or not res.get('data'):
-        print('No leads found — creating a new lead...')
-        # create a new lead
-        import time
-        t = int(time.time())
-        lead_payload = {"lead_name": f"AutoLead-{t}", "email": f"autolead{t}@test.local", "phone": "+14155550000", "source": "website"}
-        s2, r2 = req('POST', '/leads', lead_payload)
-        print('Create lead ->', s2, r2)
-        if s2 in (200, 201) and isinstance(r2, dict) and r2.get('data'):
-            lead = r2['data']
-        else:
-            print('Failed to create lead; aborting.')
-            exit(1)
-    if 'lead' not in locals():
-        lead = res['data'][0]
+    print('Creating a fresh lead for this test...')
+    # create a new lead owned by this test user to ensure ownership checks pass
+    import time
+    t = int(time.time())
+    lead_payload = {"full_name": f"AutoLead-{t}", "email": f"autolead{t}@test.local", "phone": f"+14155{t % 10000000:07d}", "source": "website", "service_type": "consulting"}
+    s2, r2 = req('POST', '/leads', lead_payload)
+    print('Create lead ->', s2, r2)
+    if s2 in (200, 201) and isinstance(r2, dict) and r2.get('data'):
+        lead = r2['data']
+    else:
+        print('Failed to create lead; aborting.')
+        exit(1)
     lead_id = lead['id']
     print('Lead id:', lead_id, 'status:', lead.get('status'))
 

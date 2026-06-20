@@ -130,10 +130,6 @@ class DatabaseManager:
             [("status", ASCENDING), ("assigned_to", ASCENDING)],
             name="idx_leads_status_assigned",
         )
-            # Single-field indexes for performance
-            leads.create_index([("assigned_to", ASCENDING)], name="idx_leads_assigned_to")
-            leads.create_index([("company_name", ASCENDING)], name="idx_leads_company_name")
-            leads.create_index([("follow_up_date", ASCENDING)], name="idx_leads_follow_up_date")
         # Source index for filtering
         leads.create_index([("source", ASCENDING)], name="idx_leads_source")
         # Soft delete filter
@@ -204,8 +200,6 @@ class DatabaseManager:
             sparse=True,
             name="idx_clients_phone_normalized",
         )
-            clients.create_index([("company_name", ASCENDING)], name="idx_clients_company_name")
-            clients.create_index([("created_at", DESCENDING)], name="idx_clients_created_at")
         logger.debug("p5_clients indexes created.")
 
 
@@ -228,12 +222,11 @@ class DatabaseManager:
         # Created_by
         comms.create_index([("created_by", ASCENDING)], name="idx_comms_created_by")
         logger.debug("p5_communications indexes created.")
-
-            # Activity logs index (ensure efficient recent feed fetch)
-            try:
-                self._db["p5_activity_logs"].create_index([("timestamp", DESCENDING)], name="idx_activity_ts")
-            except Exception:
-                logger.exception("Failed to create p5_activity_logs index")
+        # Activity logs index (ensure efficient recent feed fetch)
+        try:
+            self._db["p5_activity_logs"].create_index([("timestamp", DESCENDING)], name="idx_activity_ts")
+        except Exception:
+            logger.exception("Failed to create p5_activity_logs index")
     @property
     def db(self) -> Database:
         """Return the active database instance."""
