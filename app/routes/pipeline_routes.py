@@ -12,6 +12,7 @@ from flask import Blueprint, g, request
 from app.middleware.auth_middleware import verify_token, require_roles
 from app.services.communication_service import CommunicationService
 from app.services.pipeline_service import PipelineService
+from app.utils.ownership import verify_ownership
 from app.utils.response_helper import error_response, success_response
 from app.validators.pipeline_validator import validate_pipeline_update
 
@@ -127,6 +128,16 @@ def create_communication():
     """
     data = request.get_json(silent=True) or {}
 
+    # Ownership check on parent resource (client or lead)
+    if data.get("client_id"):
+        owner_ok, owner_err = verify_ownership("client", data["client_id"], g.current_user)
+        if not owner_ok:
+            return error_response(owner_err or "Unauthorized", 403)
+    elif data.get("lead_id"):
+        owner_ok, owner_err = verify_ownership("lead", data["lead_id"], g.current_user)
+        if not owner_ok:
+            return error_response(owner_err or "Unauthorized", 403)
+
     comm, errors = CommunicationService.create_communication(
         data=data,
         created_by=g.current_user["user_id"],
@@ -136,60 +147,3 @@ def create_communication():
 
     return success_response(comm, "Communication logged successfully.", 201)
 
-
-# ────────────────────────────────────────────────────────────────────────────
-#  GET /api/portal5/communications/client/<client_id>
-# ────────────────────────────────────────────────────────────────────────────
-@comms_bp.route("/client/<client_id>", methods=["GET"])
-@verify_token
-@require_roles("super_admin", "ops_lead", "project_manager")
-def get_client_communications(client_id: str):
-    """
-    Get communication timeline for a client.
-
-    Path param:
-        client_id (str): MongoDB ObjectId
-
-    Query params:
-        type (str, optional): Filter by communication type
-
-    Returns:
-        200 with chronological list | 400 on invalid ID
-    """
-    comm_type = request.args.get("type")
-    order = request.args.get("order", "desc")
-
-    records, errors = CommunicationService.get_by_client(client_id, comm_type, order)
-    if errors:
-        return error_response(errors[0], 400)
-
-    return success_response(records, "Communications fetched successfully.")
-
-
-# ────────────────────────────────────────────────────────────────────────────
-#  GET /api/portal5/communications/lead/<lead_id>
-# ────────────────────────────────────────────────────────────────────────────
-@comms_bp.route("/lead/<lead_id>", methods=["GET"])
-@verify_token
-@require_roles("super_admin", "ops_lead", "project_manager")
-def get_lead_communications(lead_id: str):
-    """
-    Get communication timeline for a lead.
-
-    Path param:
-        lead_id (str): MongoDB ObjectId
-
-    Query params:
-        type (str, optional): Filter by communication type
-
-    Returns:
-        200 with chronological list | 400 on invalid ID
-    """
-    comm_type = request.args.get("type")
-    order = request.args.get("order", "desc")
-
-    records, errors = CommunicationService.get_by_lead(lead_id, comm_type, order)
-    if errors:
-        return error_response(errors[0], 400)
-
-    return success_response(records, "Communications fetched successfully.")

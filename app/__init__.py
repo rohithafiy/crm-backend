@@ -91,6 +91,7 @@ def create_app(config_override: dict = None) -> Flask:
 
     # ── Health check ─────────────────────────────────────────────────────
     @app.route("/health")
+    @app.route("/api/health")
     def health():
         return jsonify({"status": "ok", "portal": "P5 - CRM & Client Management"}), 200
 

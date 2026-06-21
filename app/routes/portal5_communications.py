@@ -44,6 +44,11 @@ def create_client_communication(client_id: str):
     """
     POST /api/portal5/clients/:clientId/communications
     """
+    # Ownership check on the parent client
+    owner_ok, owner_err = verify_ownership("client", client_id, g.current_user)
+    if not owner_ok:
+        return error_response(owner_err or "Unauthorized", 403)
+
     data = request.get_json(silent=True) or {}
     # ensure client_id present and authoritative
     data["client_id"] = client_id

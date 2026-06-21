@@ -8,7 +8,8 @@
     { "key": "base_url", "value": "http://localhost:5050" },
     { "key": "token",    "value": "your_jwt_token_here" },
     { "key": "lead_id",  "value": "" },
-    { "key": "client_id","value": "" }
+    { "key": "client_id","value": "" },
+    { "key": "comm_id",  "value": "" }
   ],
   "item": [
     {
@@ -18,7 +19,7 @@
           "name": "Health Check",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/health"
+            "url": "{{base_url}}/api/health"
           }
         }
       ]
@@ -217,41 +218,114 @@
       "name": "Communications",
       "item": [
         {
-          "name": "Log Communication",
+          "name": "List Client Communications",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/portal5/clients/{{client_id}}/communications",
+              "host": ["{{base_url}}"],
+              "path": ["api", "portal5", "clients", "{{client_id}}", "communications"],
+              "query": [
+                { "key": "type", "value": "", "disabled": true },
+                { "key": "order", "value": "desc", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add Communication",
           "request": {
             "method": "POST",
             "header": [
               { "key": "Authorization", "value": "Bearer {{token}}" },
               { "key": "Content-Type",  "value": "application/json" }
             ],
-            "url": "{{base_url}}/api/portal5/communications",
+            "url": "{{base_url}}/api/portal5/clients/{{client_id}}/communications",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"type\": \"meeting\",\n  \"client_id\": \"{{client_id}}\",\n  \"subject\": \"Kickoff Call\",\n  \"content\": \"Discussed project scope. Client confirmed budget of 7.5L.\",\n  \"attendees\": [\"Arjun Mehta\", \"Priya Singh\"],\n  \"action_items\": [\"Send proposal by Friday\", \"Share NDA\"],\n  \"file_urls\": []\n}"
+              "raw": "{\n  \"communication_type\": \"meeting\",\n  \"subject\": \"Kickoff Call\",\n  \"content\": \"Discussed project scope. Client confirmed budget of 7.5L.\",\n  \"attendees\": [\"Arjun Mehta\", \"Priya Singh\"],\n  \"action_items\": [\"Send proposal by Friday\", \"Share NDA\"],\n  \"file_urls\": []\n}"
             }
           }
         },
         {
-          "name": "Get Client Communications",
+          "name": "Delete Communication",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/portal5/communications/{{comm_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Follow-Ups",
+      "item": [
+        {
+          "name": "Today's Follow-Ups",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/portal5/followups/today"
+          }
+        },
+        {
+          "name": "Upcoming Follow-Ups",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/portal5/followups/upcoming"
+          }
+        },
+        {
+          "name": "Overdue Follow-Ups",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/portal5/followups/overdue"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Activity Feed",
+      "item": [
+        {
+          "name": "Get Activity Feed",
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
             "url": {
-              "raw": "{{base_url}}/api/portal5/communications/client/{{client_id}}",
+              "raw": "{{base_url}}/api/portal5/activity-feed?limit=50",
               "host": ["{{base_url}}"],
-              "path": ["api", "portal5", "communications", "client", "{{client_id}}"],
+              "path": ["api", "portal5", "activity-feed"],
               "query": [
-                { "key": "type", "value": "meeting", "disabled": true }
+                { "key": "limit", "value": "50" }
               ]
             }
           }
-        },
+        }
+      ]
+    },
+    {
+      "name": "Search",
+      "item": [
         {
-          "name": "Get Lead Communications",
+          "name": "Unified Search",
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
-            "url": "{{base_url}}/api/portal5/communications/lead/{{lead_id}}"
+            "url": {
+              "raw": "{{base_url}}/api/portal5/search?q=acme&target=all&page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "portal5", "search"],
+              "query": [
+                { "key": "q",      "value": "acme" },
+                { "key": "target", "value": "all" },
+                { "key": "page",   "value": "1" },
+                { "key": "limit",  "value": "20" }
+              ]
+            }
           }
         }
       ]
