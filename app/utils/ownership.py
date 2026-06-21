@@ -52,7 +52,7 @@ def verify_ownership(resource_type: str, resource_id: str, current_user: dict) -
 
     user_id = current_user.get("user_id")
     # match created_by
-    if doc.get("created_by") == user_id:
+    if str(doc.get("created_by")) == str(user_id):
         return True, ""
 
     # match assigned_to (may be ObjectId)
