@@ -1,41 +1,20 @@
-"""
-Portal 5 - CRM & Client Management
-Application Factory: Flask app creation with all blueprints and config
-
-Author: P5-A2 (CRM Backend Engineer)
-"""
-
 import logging
 import os
 
 from flask import Flask, jsonify
+from flask_cors import CORS
 
+from app.configs.env_config import EnvConfig
+from app.configs.security_config import SecurityConfig
 from app.database.db import db_manager
+from app.utils.integration_helper import register_portal_routes
 
 logger = logging.getLogger(__name__)
 
 
 def create_app(config_override: dict = None) -> Flask:
-    """
-    Flask application factory.
-
-    Args:
-        config_override: Optional dict to override config values (useful for testing)
-
-    Returns:
-        Configured Flask app instance
-    """
     app = Flask(__name__)
-
-    # ── Configuration ───────────────────────────────────────────────────
-    app.config.update(
-        MONGO_URI=os.environ.get("MONGO_URI", "mongodb://localhost:27017"),
-        MONGO_DB_NAME=os.environ.get("MONGO_DB_NAME", "lti_hub"),
-        JWT_SECRET_KEY=os.environ.get("JWT_SECRET_KEY", "change-me-in-production"),
-        JWT_ALGORITHM=os.environ.get("JWT_ALGORITHM", "HS256"),
-        JSON_SORT_KEYS=False,
-        PROPAGATE_EXCEPTIONS=False,
-    )
+    app.config.from_object(EnvConfig)
 
     if config_override:
         app.config.update(config_override)
@@ -46,17 +25,39 @@ def create_app(config_override: dict = None) -> Flask:
         level=getattr(logging, log_level, logging.INFO),
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
-    # Suppress noisy DeprecationWarnings in dev output and reduce werkzeug verbosity
     import warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning)
-    # Raise werkzeug logging level to ERROR to hide the dev-server warning
-    # ("This is a development server...") and debugger messages in dev runs.
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
+
+    # Configure CORS precisely with whitelisted origins
+    CORS(app, origins=SecurityConfig.CORS_WHITELIST)
+
+    # ── Middleware ───────────────────────────────────────────────────────
+    from app.middleware.auth_middleware import AuthMiddleware
+    AuthMiddleware(app)
+
+    from app.middleware.security_headers import SecurityHeadersMiddleware
+    SecurityHeadersMiddleware(app)
 
     # ── Database ─────────────────────────────────────────────────────────
     db_manager.init_app(app)
 
-    # ── Blueprints ───────────────────────────────────────────────────────
+    # ── Health check ─────────────────────────────────────────────────────
+    from app.services.deployment_service import register_health_check
+    register_health_check(app)
+
+    @app.route("/api/health")
+    def health():
+        return jsonify({"status": "ok", "portal": "P5 - CRM & Client Management"}), 200
+
+    # ── Auth blueprints ─────────────────────────────────────────────────
+    from app.services.auth_service import auth_bp
+    app.register_blueprint(auth_bp, url_prefix="/api/auth")
+
+    from app.services.integration_service import integration_bp
+    app.register_blueprint(integration_bp, url_prefix="/integration")
+
+    # ── CRM blueprints ───────────────────────────────────────────────────
     from app.routes.portal5_leads import leads_bp
     from app.routes.portal5_clients import clients_bp
     from app.routes.pipeline_routes import pipeline_bp, comms_bp
@@ -69,11 +70,17 @@ def create_app(config_override: dict = None) -> Flask:
     app.register_blueprint(clients_bp)
     app.register_blueprint(pipeline_bp)
     app.register_blueprint(comms_bp)
-    # Contract-specific communications endpoints
     app.register_blueprint(portal5_comms_bp)
     app.register_blueprint(followups_bp)
     app.register_blueprint(activity_bp)
     app.register_blueprint(search_bp)
+
+    # ── Rate limiting ───────────────────────────────────────────────────
+    from app.services.security_service import register_rate_limit
+    register_rate_limit(app)
+
+    # ── Portal routes ───────────────────────────────────────────────────
+    register_portal_routes(app)
 
     # ── Global error handlers ────────────────────────────────────────────
     @app.errorhandler(404)
@@ -88,12 +95,6 @@ def create_app(config_override: dict = None) -> Flask:
     def internal_error(e):
         logger.exception("Unhandled 500 error")
         return jsonify({"success": False, "message": "Internal server error."}), 500
-
-    # ── Health check ─────────────────────────────────────────────────────
-    @app.route("/health")
-    @app.route("/api/health")
-    def health():
-        return jsonify({"status": "ok", "portal": "P5 - CRM & Client Management"}), 200
 
     logger.info("Portal 5 Flask application initialized.")
     return app

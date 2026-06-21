@@ -9,7 +9,7 @@ import logging
 
 from flask import Blueprint, g, request
 
-from app.middleware.auth_middleware import verify_token, require_roles
+from app.middleware.auth_middleware import authenticate, require_roles
 from app.utils.ownership import verify_ownership
 from app.services.lead_service import LeadService
 from app.utils.pagination_helper import get_pagination_params, get_sort_params
@@ -29,7 +29,7 @@ leads_bp = Blueprint("leads", __name__, url_prefix="/api/portal5/leads")
 #  POST /api/portal5/leads
 # ────────────────────────────────────────────────────────────────────────────
 @leads_bp.route("", methods=["POST"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead", "project_manager")
 def create_lead():
     """
@@ -66,7 +66,7 @@ def create_lead():
 #  GET /api/portal5/leads
 # ────────────────────────────────────────────────────────────────────────────
 @leads_bp.route("", methods=["GET"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead", "project_manager")
 def list_leads():
     """
@@ -117,7 +117,7 @@ def list_leads():
 #  GET /api/portal5/leads/<id>
 # ────────────────────────────────────────────────────────────────────────────
 @leads_bp.route("/<lead_id>", methods=["GET"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead", "project_manager")
 def get_lead(lead_id: str):
     """
@@ -147,7 +147,7 @@ def get_lead(lead_id: str):
 #  PUT /api/portal5/leads/<id>
 # ────────────────────────────────────────────────────────────────────────────
 @leads_bp.route("/<lead_id>", methods=["PUT"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead", "project_manager")
 def update_lead(lead_id: str):
     """
@@ -190,7 +190,7 @@ def update_lead(lead_id: str):
 #  DELETE /api/portal5/leads/<id>
 # ────────────────────────────────────────────────────────────────────────────
 @leads_bp.route("/<lead_id>", methods=["DELETE"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead", "project_manager")
 def delete_lead(lead_id: str):
     """
@@ -225,7 +225,7 @@ def delete_lead(lead_id: str):
 #  POST /api/portal5/leads/<id>/assign
 # ────────────────────────────────────────────────────────────────────────────
 @leads_bp.route("/<lead_id>/assign", methods=["POST"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead", "project_manager")
 def assign_lead(lead_id: str):
     """
@@ -274,7 +274,7 @@ def assign_lead(lead_id: str):
 #  POST /api/portal5/leads/bulk-assign
 # ────────────────────────────────────────────────────────────────────────────
 @leads_bp.route("/bulk-assign", methods=["POST"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead")
 def bulk_assign():
     """Bulk assign leads to a user."""
@@ -299,7 +299,7 @@ def bulk_assign():
 #  POST /api/portal5/leads/bulk-status
 # ────────────────────────────────────────────────────────────────────────────
 @leads_bp.route("/bulk-status", methods=["POST"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead")
 def bulk_status():
     """Bulk update status for multiple leads."""
@@ -323,7 +323,7 @@ def bulk_status():
 #  POST /api/portal5/leads/bulk-delete
 # ────────────────────────────────────────────────────────────────────────────
 @leads_bp.route("/bulk-delete", methods=["POST"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead")
 def bulk_delete():
     """Bulk soft-delete leads."""
@@ -346,7 +346,7 @@ def bulk_delete():
 #  POST /api/portal5/leads/<id>/convert
 # ────────────────────────────────────────────────────────────────────────────
 @leads_bp.route("/<lead_id>/convert", methods=["POST"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead", "project_manager")
 def convert_lead(lead_id: str):
     """

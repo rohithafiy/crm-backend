@@ -9,7 +9,7 @@ import logging
 
 from flask import Blueprint, g, request
 
-from app.middleware.auth_middleware import verify_token, require_roles
+from app.middleware.auth_middleware import authenticate, require_roles
 from app.utils.ownership import verify_ownership
 from app.services.client_service import ClientService
 from app.utils.pagination_helper import get_pagination_params, get_sort_params
@@ -25,7 +25,7 @@ clients_bp = Blueprint("clients", __name__, url_prefix="/api/portal5/clients")
 #  POST /api/portal5/clients
 # ────────────────────────────────────────────────────────────────────────────
 @clients_bp.route("", methods=["POST"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead", "project_manager")
 def create_client():
     """
@@ -64,7 +64,7 @@ def create_client():
 #  GET /api/portal5/clients
 # ────────────────────────────────────────────────────────────────────────────
 @clients_bp.route("", methods=["GET"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead", "project_manager")
 def list_clients():
     """
@@ -112,7 +112,7 @@ def list_clients():
 #  GET /api/portal5/clients/<id>
 # ────────────────────────────────────────────────────────────────────────────
 @clients_bp.route("/<client_id>", methods=["GET"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead", "project_manager")
 def get_client(client_id: str):
     """
@@ -142,7 +142,7 @@ def get_client(client_id: str):
 #  PUT /api/portal5/clients/<id>
 # ────────────────────────────────────────────────────────────────────────────
 @clients_bp.route("/<client_id>", methods=["PUT"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead", "project_manager")
 def update_client(client_id: str):
     """
@@ -185,7 +185,7 @@ def update_client(client_id: str):
 #  DELETE /api/portal5/clients/<id>
 # ────────────────────────────────────────────────────────────────────────────
 @clients_bp.route("/<client_id>", methods=["DELETE"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead", "project_manager")
 def delete_client(client_id: str):
     """

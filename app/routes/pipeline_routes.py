@@ -9,7 +9,7 @@ import logging
 
 from flask import Blueprint, g, request
 
-from app.middleware.auth_middleware import verify_token, require_roles
+from app.middleware.auth_middleware import authenticate, require_roles
 from app.services.communication_service import CommunicationService
 from app.services.pipeline_service import PipelineService
 from app.utils.ownership import verify_ownership
@@ -26,7 +26,7 @@ comms_bp = Blueprint("communications", __name__, url_prefix="/api/portal5/commun
 #  PUT /api/portal5/pipeline/<lead_id>
 # ────────────────────────────────────────────────────────────────────────────
 @pipeline_bp.route("/<lead_id>", methods=["PUT"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead", "project_manager")
 def update_pipeline_stage(lead_id: str):
     """
@@ -81,7 +81,7 @@ def update_pipeline_stage(lead_id: str):
 #  GET /api/portal5/pipeline
 # ────────────────────────────────────────────────────────────────────────────
 @pipeline_bp.route("", methods=["GET"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead", "project_manager")
 def get_pipeline_board():
     """
@@ -112,7 +112,7 @@ def get_pipeline_board():
 #  POST /api/portal5/communications
 # ────────────────────────────────────────────────────────────────────────────
 @comms_bp.route("", methods=["POST"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead", "project_manager")
 def create_communication():
     """

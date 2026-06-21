@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, request
 
-from app.middleware.auth_middleware import verify_token, require_roles
+from app.middleware.auth_middleware import authenticate, require_roles
 from app.models.p5_lead import serialize_lead
 from app.database.db import get_leads_collection
 from app.utils.response_helper import success_response, error_response
@@ -34,7 +34,7 @@ def _serialize_min(lead_doc):
 
 
 @followups_bp.route("/today", methods=["GET"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead", "project_manager")
 def todays_followups():
     today = datetime.now(timezone.utc).date()
@@ -49,7 +49,7 @@ def todays_followups():
 
 
 @followups_bp.route("/upcoming", methods=["GET"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead", "project_manager")
 def upcoming_followups():
     now = datetime.now(timezone.utc)
@@ -61,7 +61,7 @@ def upcoming_followups():
 
 
 @followups_bp.route("/overdue", methods=["GET"])
-@verify_token
+@authenticate
 @require_roles("super_admin", "ops_lead", "project_manager")
 def overdue_followups():
     now = datetime.now(timezone.utc)
