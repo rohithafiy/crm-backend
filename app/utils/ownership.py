@@ -34,7 +34,7 @@ def verify_ownership(resource_type: str, resource_id: str, current_user: dict) -
     if not current_user:
         return False, "Authentication required"
     role = current_user.get("role", "")
-    if role == "super_admin":
+    if role in ["super_admin", "ops_lead"]:
         return True, ""
 
     coll = _get_collection_for(resource_type)
