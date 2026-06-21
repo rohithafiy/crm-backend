@@ -6,7 +6,7 @@ Author: P5-A2 (CRM Backend Engineer)
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from bson import ObjectId
@@ -122,7 +122,7 @@ class ClientService:
             query["user_id"] = assigned_user
 
         # Date range filtering on created_at (ISO8601 expected)
-        from datetime import datetime
+        from datetime import datetime, timezone
         created_query = {}
         if date_from:
             try:
@@ -137,7 +137,7 @@ class ClientService:
         if created_query:
             query["created_at"] = created_query
         # date range filtering on created_at
-        from datetime import datetime
+        from datetime import datetime, timezone
         date_from = None
         date_to = None
         # caller may pass via kwargs in future; ignore if not provided
@@ -264,7 +264,7 @@ class ClientService:
 
         protected = {"_id", "created_at", "created_by", "lead_id", "is_deleted"}
         updates = {k: v for k, v in data.items() if k not in protected}
-        updates["updated_at"] = datetime.utcnow()
+        updates["updated_at"] = datetime.now(timezone.utc)
 
         collection.update_one({"_id": oid}, {"$set": updates})
 
@@ -310,7 +310,7 @@ class ClientService:
         collection = get_clients_collection()
         result = collection.update_one(
             {"_id": oid, "is_deleted": False},
-            {"$set": {"is_deleted": True, "deleted_at": datetime.utcnow(), "updated_at": datetime.utcnow()}},
+            {"$set": {"is_deleted": True, "deleted_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc)}},
         )
         if result.modified_count > 0:
             try:

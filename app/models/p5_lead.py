@@ -6,7 +6,7 @@ Author: P5-A2 (CRM Backend Engineer)
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
@@ -81,7 +81,7 @@ def build_lead_document(data: dict[str, Any], created_by: str) -> dict[str, Any]
     Returns:
         Complete lead document dict
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     name = data.get("full_name") or data.get("lead_name", "").strip()
 
     return {

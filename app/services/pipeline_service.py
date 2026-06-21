@@ -6,7 +6,7 @@ Author: P5-A2 (CRM Backend Engineer)
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from bson import ObjectId
@@ -65,7 +65,7 @@ class PipelineService:
 
         collection.update_one(
             {"_id": oid},
-            {"$set": {"status": new_status, "updated_at": datetime.utcnow()}},
+            {"$set": {"status": new_status, "updated_at": datetime.now(timezone.utc)}},
         )
 
         logger.info(

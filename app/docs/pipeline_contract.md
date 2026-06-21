@@ -87,24 +87,6 @@ Returns all non-deleted leads grouped by stage.
 
 ---
 
-### GET /api/portal5/communications/client/:client_id
-**Client Communication Timeline**
-
-| Param | Type   | Description                    |
-|-------|--------|--------------------------------|
-| type  | string | Optional: filter by comm type  |
-
-Returns chronological list (newest first).
-
----
-
-### GET /api/portal5/communications/lead/:lead_id
-**Lead Communication Timeline**
-
-Same shape as client timeline, filtered by lead.
-
----
-
 ## Communication Object Shape
 
 ```json

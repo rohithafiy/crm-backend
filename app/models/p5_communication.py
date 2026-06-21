@@ -5,7 +5,7 @@ Communication Model: Schema definitions and data helpers
 Author: P5-A2 (CRM Backend Engineer)
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
@@ -50,7 +50,7 @@ def build_communication_document(
         "action_items": data.get("action_items", []),
         "file_urls": data.get("file_urls", []),
         "created_by": created_by,
-        "created_at": datetime.utcnow(),
+        "created_at": datetime.now(timezone.utc),
     }
 
 

@@ -5,7 +5,7 @@ Client Model: Schema definitions, enums, and data helpers
 Author: P5-A2 (CRM Backend Engineer)
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 from app.utils.phone_helper import normalize_phone
@@ -47,7 +47,7 @@ def build_client_document(
     Returns:
         Complete client document dict
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     client_name = (data.get("client_name") or data.get("contact_person") or "").strip()
     contact_person = data.get("contact_person", client_name).strip() if isinstance(data.get("contact_person", client_name), str) else client_name
     return {

@@ -6,7 +6,7 @@ Author: P5-A2 (CRM Backend Engineer)
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 from bson import ObjectId
 from app.database.db import db_manager
@@ -50,7 +50,7 @@ class ActivityService:
             "resource_type": resource_type,
             "resource_id": resource_id,
             "status": status,
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now(timezone.utc)
         }
 
         try:

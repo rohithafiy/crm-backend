@@ -6,7 +6,7 @@ Author: P5-A2 (CRM Backend Engineer)
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from bson import ObjectId
@@ -100,7 +100,7 @@ class LeadService:
                     "assigned_to": doc.get("assigned_to"),
                     "assigned_by": created_by,
                     "note": data.get("assignment_note", ""),
-                    "assigned_at": datetime.utcnow(),
+                    "assigned_at": datetime.now(timezone.utc),
                 }
                 doc.setdefault("assignment_history", []).append(assignment_entry)
             except Exception:
@@ -112,7 +112,7 @@ class LeadService:
                 "action": "create",
                 "performed_by": created_by,
                 "details": f"Lead created (email={data.get('email')})",
-                "timestamp": datetime.utcnow(),
+                "timestamp": datetime.now(timezone.utc),
             })
             result = collection.insert_one(doc)
             doc["_id"] = result.inserted_id
@@ -190,7 +190,7 @@ class LeadService:
             ]
 
         # Date range filtering on created_at (ISO8601 expected)
-        from datetime import datetime
+        from datetime import datetime, timezone
         created_query = {}
         if date_from:
             try:
@@ -300,7 +300,7 @@ class LeadService:
         # Sanitize and build $set payload
         protected = {"_id", "created_at", "created_by", "assignment_history", "is_deleted", "assigned_to"}
         updates = {k: v for k, v in data.items() if k not in protected}
-        updates["updated_at"] = datetime.utcnow()
+        updates["updated_at"] = datetime.now(timezone.utc)
 
         if "estimated_value" in updates and updates["estimated_value"] is not None:
             updates["estimated_value"] = float(updates["estimated_value"])
@@ -312,7 +312,7 @@ class LeadService:
                 "action": "update",
                 "performed_by": updated_by,
                 "details": f"Updated fields: {', '.join(list(updates.keys()))}",
-                "timestamp": datetime.utcnow(),
+                "timestamp": datetime.now(timezone.utc),
             }
             collection.update_one({"_id": oid}, {"$push": {"audit_logs": audit_entry}})
         except Exception:
@@ -360,7 +360,7 @@ class LeadService:
         collection = get_leads_collection()
         result = collection.update_one(
             {"_id": oid, "is_deleted": False},
-            {"$set": {"is_deleted": True, "deleted_at": datetime.utcnow()}},
+            {"$set": {"is_deleted": True, "deleted_at": datetime.now(timezone.utc)}},
         )
         # Audit deletion
         if result.modified_count > 0:
@@ -369,7 +369,7 @@ class LeadService:
                     "action": "delete",
                     "performed_by": deleted_by,
                     "details": "Soft-deleted lead",
-                    "timestamp": datetime.utcnow(),
+                    "timestamp": datetime.now(timezone.utc),
                 }}})
             except Exception:
                 logger.exception("Failed to append delete audit for lead %s", lead_id)
@@ -426,7 +426,7 @@ class LeadService:
             "assigned_to": assigned_to_val,
             "assigned_by": assigned_by_val,
             "note": note,
-            "assigned_at": datetime.utcnow(),
+            "assigned_at": datetime.now(timezone.utc),
         }
 
         collection.update_one(
@@ -434,7 +434,7 @@ class LeadService:
             {
                 "$set": {
                     "assigned_to": assigned_to_val,
-                    "updated_at": datetime.utcnow(),
+                    "updated_at": datetime.now(timezone.utc),
                 },
                 "$push": {"assignment_history": assignment_entry},
             },
@@ -446,7 +446,7 @@ class LeadService:
                 "action": "assign",
                 "performed_by": assigned_by,
                 "details": f"Assigned to {assigned_to}",
-                "timestamp": datetime.utcnow(),
+                "timestamp": datetime.now(timezone.utc),
             }
             collection.update_one({"_id": oid}, {"$push": {"audit_logs": audit_entry}})
         except Exception:
@@ -560,7 +560,7 @@ class LeadService:
         # Update lead status to won
         collection.update_one(
             {"_id": oid},
-            {"$set": {"status": LeadStatus.WON, "updated_at": datetime.utcnow()}},
+            {"$set": {"status": LeadStatus.WON, "updated_at": datetime.now(timezone.utc)}},
         )
 
         updated_lead = collection.find_one({"_id": oid})
@@ -627,14 +627,14 @@ class LeadService:
             "assigned_to": assigned_to_val,
             "assigned_by": assigned_by_val,
             "note": note,
-            "assigned_at": datetime.utcnow()
+            "assigned_at": datetime.now(timezone.utc)
         }
 
         audit_entry = {
             "action": "bulk_assign",
             "performed_by": assigned_by,
             "details": f"Bulk assigned to {assigned_to}",
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now(timezone.utc)
         }
 
         result = collection.update_many(
@@ -642,7 +642,7 @@ class LeadService:
             {
                 "$set": {
                     "assigned_to": assigned_to_val,
-                    "updated_at": datetime.utcnow()
+                    "updated_at": datetime.now(timezone.utc)
                 },
                 "$push": {
                     "assignment_history": assignment_entry,
@@ -692,7 +692,7 @@ class LeadService:
             "action": "bulk_status_update",
             "performed_by": updated_by,
             "details": f"Bulk status updated to {status}",
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now(timezone.utc)
         }
 
         result = collection.update_many(
@@ -700,7 +700,7 @@ class LeadService:
             {
                 "$set": {
                     "status": status,
-                    "updated_at": datetime.utcnow()
+                    "updated_at": datetime.now(timezone.utc)
                 },
                 "$push": {"audit_logs": audit_entry}
             }
@@ -743,7 +743,7 @@ class LeadService:
             "action": "bulk_delete",
             "performed_by": deleted_by,
             "details": "Bulk soft-deleted lead",
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now(timezone.utc)
         }
 
         result = collection.update_many(
@@ -751,8 +751,8 @@ class LeadService:
             {
                 "$set": {
                     "is_deleted": True,
-                    "deleted_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow()
+                    "deleted_at": datetime.now(timezone.utc),
+                    "updated_at": datetime.now(timezone.utc)
                 },
                 "$push": {"audit_logs": audit_entry}
             }

@@ -1,5 +1,5 @@
 import jwt, json, urllib.request, urllib.error
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 BASE = 'http://127.0.0.1:5050/api/portal5'
 SECRET = 'dev-secret-key-for-portal5-crm-management'
@@ -9,7 +9,7 @@ payload = {
     'email': 'tester@example.com',
     'role': 'project_manager',
     'name': 'Tester',
-    'exp': datetime.utcnow() + timedelta(hours=1),
+    'exp': datetime.now(timezone.utc) + timedelta(hours=1),
 }
 
 token = jwt.encode(payload, SECRET, algorithm='HS256')
@@ -33,6 +33,8 @@ def req(method, path, body=None):
             body = e.read().decode()
         except Exception:
             body = ''
+        finally:
+            e.close()
         return e.code, body
     except Exception as exc:
         return None, str(exc)

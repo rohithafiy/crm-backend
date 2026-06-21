@@ -168,7 +168,7 @@ def verify_ownership(resource_type: str) -> Callable:
             from app.database.db import db_manager
             from bson import ObjectId
             from bson.errors import InvalidId
-            from datetime import datetime
+            from datetime import datetime, timezone
 
             try:
                 oid = ObjectId(resource_id)
@@ -221,7 +221,7 @@ def verify_ownership(resource_type: str) -> Callable:
                         "resource_type": resource_type,
                         "resource_id": resource_id,
                         "status": "rejected",
-                        "timestamp": datetime.utcnow()
+                        "timestamp": datetime.now(timezone.utc)
                     })
                 except Exception:
                     logger.exception("Failed to log unauthorized mutation activity")

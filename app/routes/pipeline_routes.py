@@ -54,6 +54,11 @@ def update_pipeline_stage(lead_id: str):
     if errors:
         return error_response("Validation failed.", 400, errors=errors)
 
+    # Ownership check
+    owner_ok, owner_err = verify_ownership("lead", lead_id, g.current_user)
+    if not owner_ok:
+        return error_response(owner_err or "Unauthorized", 403)
+
     try:
         lead = PipelineService.update_stage(
             lead_id=lead_id,
